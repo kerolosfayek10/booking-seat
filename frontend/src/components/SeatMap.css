@@ -1,0 +1,140 @@
+.seat-map {
+  width: 100%;
+}
+
+.legend {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  justify-content: center;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.row {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 1rem;
+  background: white;
+}
+
+.row-header {
+  margin-bottom: 1rem;
+}
+
+.row-header h3 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.1rem;
+}
+
+.row-header p {
+  margin: 0;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.seat-visual {
+  display: flex;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.seat {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: bold;
+  border: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.seat.available {
+  background-color: #4caf50;
+  color: white;
+}
+
+.seat.selected {
+  background-color: #2196f3;
+  color: white;
+  border-color: #1976d2;
+  transform: scale(1.1);
+}
+
+.seat.booked {
+  background-color: #f44336;
+  color: white;
+  cursor: not-allowed;
+}
+
+.row-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.row-controls label {
+  font-weight: 500;
+}
+
+.seat-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.seat-btn {
+  width: 35px;
+  height: 35px;
+  border: 2px solid #ddd;
+  background: white;
+  color: #333;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.2s;
+}
+
+.seat-btn:hover {
+  border-color: #2196f3;
+  background-color: #f5f5f5;
+}
+
+.seat-btn.active {
+  background-color: #2196f3;
+  color: white;
+  border-color: #1976d2;
+}
+
+@media (max-width: 600px) {
+  .seat-visual {
+    gap: 0.25rem;
+  }
+  
+  .seat {
+    width: 30px;
+    height: 30px;
+    font-size: 0.7rem;
+  }
+  
+  .legend {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+}
