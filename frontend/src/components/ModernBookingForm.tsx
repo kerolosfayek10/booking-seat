@@ -168,7 +168,7 @@ const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows, onSubmi
       formDataToSend.append('seats', JSON.stringify(seats))
 
       // Send booking request to API
-      const response = await axios.post('http://localhost:3001/bookings', formDataToSend, {
+      const response = await axios.post('https://booking-seat-kyna.vercel.app/bookings', formDataToSend, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -213,7 +213,7 @@ const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows, onSubmi
       const formDataToSend = new FormData()
       formDataToSend.append('receipt', paymentImage)
 
-      const response = await axios.patch(`http://localhost:3001/bookings/${bookingId}/receipt`, formDataToSend, {
+      const response = await axios.patch(`    bookings/${bookingId}/receipt`, formDataToSend, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

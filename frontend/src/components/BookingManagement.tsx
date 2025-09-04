@@ -106,7 +106,7 @@ const BookingManagement: React.FC<BookingManagementProps> = ({ token }) => {
       setLoading(true);
       setError('');
       
-      const response = await axios.get<Booking[]>('http://localhost:3001/bookings', {
+      const response = await axios.get<Booking[]>('https://booking-seat-kyna.vercel.app/bookings', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -130,7 +130,7 @@ const BookingManagement: React.FC<BookingManagementProps> = ({ token }) => {
       setUpdatingBookings(prev => new Set(prev).add(bookingId));
       
       const response = await axios.patch<PaymentUpdateResponse>(
-        `http://localhost:3001/bookings/${bookingId}/payment`,
+        `https://booking-seat-kyna.vercel.app/bookings/${bookingId}/payment`,
         { isPaid: true },
         {
           headers: {
@@ -174,7 +174,7 @@ const BookingManagement: React.FC<BookingManagementProps> = ({ token }) => {
       setDeletingBookings(prev => new Set(prev).add(bookingId));
       
       const response = await axios.delete<DeleteBookingResponse>(
-        `http://localhost:3001/bookings/${bookingId}`,
+        `https://booking-seat-kyna.vercel.app/bookings/${bookingId}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`

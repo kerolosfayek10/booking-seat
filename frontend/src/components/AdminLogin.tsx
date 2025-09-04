@@ -55,7 +55,7 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
     setError('');
 
     try {
-      const response = await axios.post<LoginResponse>('http://localhost:3001/auth/login', {
+      const response = await axios.post<LoginResponse>('https://booking-seat-kyna.vercel.app/auth/login', {
         username,
         password
       });

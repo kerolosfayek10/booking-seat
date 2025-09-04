@@ -22,7 +22,7 @@ const BookingPage: React.FC = () => {
   const fetchSeatRows = async () => {
     try {
       setLoading(true)
-      const response = await axios.get('http://localhost:3001/seat-rows')
+      const response = await axios.get('https://booking-seat-kyna.vercel.app/seat-rows')
       setSeatRows(response.data)
     } catch (err) {
       setError('Failed to fetch seat data')

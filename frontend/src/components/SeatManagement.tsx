@@ -66,7 +66,7 @@ const SeatManagement: React.FC<SeatManagementProps> = ({ token }) => {
       setLoading(true);
       setError('');
       
-      const response = await axios.get<SeatRow[]>('http://localhost:3001/seat-rows', {
+      const response = await axios.get<SeatRow[]>('https://booking-seat-kyna.vercel.app/seat-rows', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -118,7 +118,7 @@ const SeatManagement: React.FC<SeatManagementProps> = ({ token }) => {
       setAddingSeatToRow(rowId);
       
       const response = await axios.patch<AddSeatResponse>(
-        `http://localhost:3001/seat-rows/${rowId}/add-seat`,
+        `https://booking-seat-kyna.vercel.app/seat-rows/${rowId}/add-seat`,
         { seatNumber },
         {
           headers: {
