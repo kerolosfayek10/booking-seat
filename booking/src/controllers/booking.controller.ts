@@ -121,6 +121,21 @@ export class BookingController {
       if (error instanceof SyntaxError) {
         throw new BadRequestException('Invalid seats JSON format');
       }
+      
+      // Handle file upload specific errors
+      if (error.message?.includes('File size exceeds')) {
+        throw new BadRequestException('Receipt file is too large. Maximum size is 10MB.');
+      }
+      
+      if (error.message?.includes('File type not supported')) {
+        throw new BadRequestException('Receipt file type not supported. Please use JPG, PNG, GIF, or PDF.');
+      }
+      
+      if (error.message?.includes('Upload failed after')) {
+        throw new BadRequestException('Receipt upload failed. Please check your connection and try again.');
+      }
+      
+      console.error('Booking creation error:', error);
       throw error;
     }
   }

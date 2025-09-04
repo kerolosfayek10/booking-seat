@@ -42,7 +42,16 @@ export class BookingService {
       // Upload receipt if provided
       let receiptUrl: string | null = null;
       if (receiptFile) {
-        receiptUrl = await this.supabaseService.uploadReceipt(receiptFile, user.id);
+        try {
+          console.log('Starting receipt upload for user:', user.id);
+          receiptUrl = await this.supabaseService.uploadReceipt(receiptFile, user.id);
+          console.log('Receipt upload completed:', receiptUrl);
+        } catch (uploadError) {
+          console.error('Receipt upload failed:', uploadError);
+          // Don't fail the entire booking if just the receipt upload fails
+          // We'll continue with the booking but set receiptUrl to null
+          receiptUrl = null;
+        }
       }
 
       // Remove seats from SeatRow and create booking

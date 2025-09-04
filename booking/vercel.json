@@ -12,6 +12,11 @@
         "dest": "/api/index.js"
       }
     ],
-    "buildCommand": "npm run vercel-build"
+    "buildCommand": "npm run vercel-build",
+    "functions": {
+      "api/index.js": {
+        "maxDuration": 30
+      }
+    }
 }
   
