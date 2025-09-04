@@ -1,11 +1,9 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
 import { PrismaService } from './prisma.service';
 import { SupabaseService } from './supabase.service';
 import { SeatRowService } from './seatrow.service';
+import { EmailService } from './email.service';
 import { CreateBookingDto } from '../dto/create-booking.dto';
-import { EmailJobData } from '../queues/email.processor';
 
 @Injectable()
 export class BookingService {
@@ -13,7 +11,7 @@ export class BookingService {
     private prisma: PrismaService,
     private supabaseService: SupabaseService,
     private seatRowService: SeatRowService,
-    @InjectQueue('email') private emailQueue: Queue<EmailJobData>
+    private emailService: EmailService
   ) {}
 
   async createBooking(createBookingDto: CreateBookingDto, receiptFile?: Express.Multer.File) {
@@ -212,27 +210,21 @@ export class BookingService {
 
       // If payment is marked as true, send confirmation email
       if (isPaid) {
-        const emailData: EmailJobData = {
-          userEmail: booking.user.email,
-          userName: booking.user.name,
-          totalSeats: booking.seats.length,
-          seats: booking.seats.map(seat => ({
-            rowName: seat.seatRow.name,
-            seatNumber: seat.seatNumber
-          }))
-        };
-
-        // Add email job to queue
-        await this.emailQueue.add('booking-confirmation', emailData, {
-          delay: 1000, // Send email after 1 second delay
-          attempts: 3, // Retry up to 3 times if failed
-          backoff: {
-            type: 'exponential',
-            delay: 2000,
-          },
-        });
-
-        console.log(`Email job queued for booking ${bookingId} to ${booking.user.email}`);
+        try {
+          await this.emailService.sendBookingConfirmation(
+            booking.user.email,
+            booking.user.name,
+            booking.seats.length,
+            booking.seats.map(seat => ({
+              rowName: seat.seatRow.name,
+              seatNumber: seat.seatNumber
+            }))
+          );
+          console.log(`Booking confirmation email sent to ${booking.user.email}`);
+        } catch (error) {
+          console.error(`Failed to send email for booking ${bookingId}:`, error);
+          // Don't fail the booking update if email fails
+        }
       }
 
       return {
