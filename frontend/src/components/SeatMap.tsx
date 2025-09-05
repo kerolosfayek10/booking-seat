@@ -23,7 +23,7 @@ const SeatMap: React.FC<SeatMapProps> = ({ seatRows, selectedSeats, onSeatSelect
     const row = seatRows.find(r => r.id === rowId)
     if (!row) return
 
-    const maxAllowed = Math.min(row.availableSeats, 4) // Limit to 4 seats per row
+    const maxAllowed = row.availableSeats // No seat limit per row
     const validCount = Math.max(0, Math.min(newCount, maxAllowed))
     
     onSeatSelection(rowId, validCount)
@@ -31,7 +31,7 @@ const SeatMap: React.FC<SeatMapProps> = ({ seatRows, selectedSeats, onSeatSelect
 
   const renderSeatButtons = (row: SeatRow) => {
     const selectedCount = getSelectedCount(row.id)
-    const maxSelectable = Math.min(row.availableSeats, 4)
+    const maxSelectable = row.availableSeats
     
     return (
       <div className="seat-buttons">

@@ -170,10 +170,7 @@ export class BookingController {
       throw new BadRequestException('Seats array is required');
     }
 
-    // Check seat limit: maximum 5 seats per booking
-    if (seats.length > 5) {
-      throw new BadRequestException('Cannot book more than 5 seats at once');
-    }
+    // Seat availability check - no booking limit imposed
 
     // Quick check: only verify if seats are already booked
     const bookedSeats: Array<{
