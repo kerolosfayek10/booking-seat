@@ -12,7 +12,7 @@ async function bootstrap() {
       'https://booking-seat-six.vercel.app', 
       'https://booking-seat-six.vercel.app/',
       'https://booking-seat-git-stage-kerolos-projects-3e0137c1.vercel.app',
-            'https://booking-seat-m4.vercel.app'], // Allow frontend origins
+            'https://booking-seat-2b14.vercel.app'], // Allow frontend origins
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
     credentials: true
