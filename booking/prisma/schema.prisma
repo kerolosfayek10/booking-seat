@@ -40,9 +40,15 @@ model SeatBooking {
 }
 
 
+enum SeatRowType {
+  Ground
+  Balcony
+}
+
 model SeatRow {
   id           String        @id @default(cuid())
   name         String   
+  type         SeatRowType   @default(Ground)
   seats        Int[]    
   seatBookings SeatBooking[]
   createdAt    DateTime      @default(now())

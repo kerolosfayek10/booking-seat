@@ -55,7 +55,7 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
     setError('');
 
     try {
-      const response = await axios.post<LoginResponse>('https://booking-seat-kyna.vercel.app/auth/login', {
+      const response = await axios.post<LoginResponse>('http://localhost:3001/auth/login', {
         username,
         password
       });
@@ -70,7 +70,9 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
         
         // Delay navigation to show success message
         setTimeout(() => {
-          onLoginSuccess(response.data.data.accessToken);
+          if (response.data.data?.accessToken) {
+            onLoginSuccess(response.data.data.accessToken);
+          }
         }, 1500);
       } else {
         showDialog('error', 'Login Failed', 'Login failed. Please try again.');

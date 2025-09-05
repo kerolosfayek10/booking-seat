@@ -1,7 +1,7 @@
-import { Controller, Get, Post, Patch, Body, Param } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
+import { Controller, Get, Post, Patch, Body, Param, Query } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody, ApiQuery } from '@nestjs/swagger';
 import { SeatRowService } from '../services/seatrow.service';
-import { CreateSeatRowDto } from '../dto/create-seatrow.dto';
+import { CreateSeatRowDto, SeatRowType } from '../dto/create-seatrow.dto';
 
 @ApiTags('Seat Rows')
 @Controller('seat-rows')
@@ -28,7 +28,13 @@ export class SeatRowController {
   @Get()
   @ApiOperation({ 
     summary: 'Get all seat rows',
-    description: 'Retrieve all seat rows with their names'
+    description: 'Retrieve all seat rows with their names, optionally filtered by type'
+  })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    enum: SeatRowType,
+    description: 'Filter by seat row type (Ground or Balcony)'
   })
   @ApiResponse({ 
     status: 200, 
@@ -40,6 +46,7 @@ export class SeatRowController {
         properties: {
           id: { type: 'string' },
           name: { type: 'string' },
+          type: { type: 'string', enum: ['Ground', 'Balcony'] },
           seats: { 
             type: 'array',
             items: { type: 'number' }
@@ -49,8 +56,8 @@ export class SeatRowController {
       }
     }
   })
-  async getAllSeatRows() {
-    return await this.seatRowService.getAllSeatRows();
+  async getAllSeatRows(@Query('type') type?: SeatRowType) {
+    return await this.seatRowService.getAllSeatRows(type);
   }
 
   @Get(':id')

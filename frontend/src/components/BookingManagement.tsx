@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Dialog from './Dialog';
+import { buildUrl, ENDPOINTS } from '../config/api';
 import './BookingManagement.css';
 
 interface BookingUser {
@@ -13,6 +14,7 @@ interface BookingUser {
 interface BookingSeat {
   rowName: string;
   seatNumber: number;
+  rowType?: string;
 }
 
 interface Booking {
@@ -24,6 +26,15 @@ interface Booking {
   isPaid: boolean;
   receiptUrl: string | null;
   createdAt: string;
+}
+
+interface PaginationInfo {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  itemsPerPage: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
 }
 
 interface PaymentUpdateResponse {
@@ -57,10 +68,13 @@ interface BookingManagementProps {
 
 const BookingManagement: React.FC<BookingManagementProps> = ({ token }) => {
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [pagination, setPagination] = useState<PaginationInfo | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [updatingBookings, setUpdatingBookings] = useState<Set<string>>(new Set());
   const [deletingBookings, setDeletingBookings] = useState<Set<string>>(new Set());
+  const [emailFilter, setEmailFilter] = useState('');
   const [dialogState, setDialogState] = useState<{
     isOpen: boolean;
     type: 'success' | 'error' | 'warning' | 'info';
@@ -78,7 +92,7 @@ const BookingManagement: React.FC<BookingManagementProps> = ({ token }) => {
 
   useEffect(() => {
     fetchBookings();
-  }, []);
+  }, [currentPage]);
 
   const showDialog = (
     type: 'success' | 'error' | 'warning' | 'info', 
@@ -106,13 +120,26 @@ const BookingManagement: React.FC<BookingManagementProps> = ({ token }) => {
       setLoading(true);
       setError('');
       
-      const response = await axios.get<Booking[]>('https://booking-seat-kyna.vercel.app/bookings', {
+      // Fetch with pagination - 5 items per page
+      const response = await axios.get(buildUrl(ENDPOINTS.BOOKINGS.LIST, { 
+        page: currentPage,
+        limit: 5 
+      }), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
 
-      setBookings(response.data);
+      // Handle both old array format and new pagination format
+      if (response.data.bookings) {
+        // New pagination format
+        setBookings(response.data.bookings);
+        setPagination(response.data.pagination);
+      } else {
+        // Old array format (fallback)
+        setBookings(response.data);
+        setPagination(null);
+      }
     } catch (err: any) {
       console.error('Error fetching bookings:', err);
       if (err.response?.status === 401) {
@@ -125,12 +152,49 @@ const BookingManagement: React.FC<BookingManagementProps> = ({ token }) => {
     }
   };
 
+  const getFilteredBookings = () => {
+    if (!emailFilter.trim()) {
+      return bookings;
+    }
+    
+    return bookings.filter(booking => 
+      booking.user.email.toLowerCase().includes(emailFilter.toLowerCase())
+    );
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handlePrevPage = () => {
+    if (pagination?.hasPreviousPage) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (pagination?.hasNextPage) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const handleClearFilter = () => {
+    setEmailFilter('');
+    setCurrentPage(1); // Reset to first page when clearing filter
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      handleClearFilter();
+    }
+  };
+
   const handleConfirmPayment = async (bookingId: string) => {
     try {
       setUpdatingBookings(prev => new Set(prev).add(bookingId));
       
       const response = await axios.patch<PaymentUpdateResponse>(
-        `https://booking-seat-kyna.vercel.app/bookings/${bookingId}/payment`,
+        buildUrl(ENDPOINTS.BOOKINGS.UPDATE_PAYMENT(bookingId)),
         { isPaid: true },
         {
           headers: {
@@ -174,7 +238,7 @@ const BookingManagement: React.FC<BookingManagementProps> = ({ token }) => {
       setDeletingBookings(prev => new Set(prev).add(bookingId));
       
       const response = await axios.delete<DeleteBookingResponse>(
-        `https://booking-seat-kyna.vercel.app/bookings/${bookingId}`,
+        buildUrl(ENDPOINTS.BOOKINGS.DELETE(bookingId)),
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -187,7 +251,12 @@ const BookingManagement: React.FC<BookingManagementProps> = ({ token }) => {
         showDialog('success', 'Booking Deleted', response.data.message);
         
         // Refresh the bookings list after successful deletion
-        await fetchBookings();
+        // If we're on a page that no longer exists after deletion, go to the previous page
+        if (currentPage > 1 && bookings.length === 1) {
+          setCurrentPage(prev => prev - 1);
+        } else {
+          await fetchBookings();
+        }
       } else {
         showDialog('error', 'Delete Failed', 'Failed to delete booking');
       }
@@ -224,8 +293,25 @@ const BookingManagement: React.FC<BookingManagementProps> = ({ token }) => {
     return new Date(dateString).toLocaleString();
   };
 
-  const formatSeats = (seats: BookingSeat[]) => {
-    return seats.map(seat => `${seat.rowName}-${seat.seatNumber}`).join(', ');
+
+  const highlightEmail = (email: string) => {
+    if (!emailFilter.trim()) return email;
+    
+    const filterText = emailFilter.toLowerCase();
+    const emailLower = email.toLowerCase();
+    const index = emailLower.indexOf(filterText);
+    
+    if (index === -1) return email;
+    
+    return (
+      <>
+        {email.substring(0, index)}
+        <mark style={{ backgroundColor: '#ffeb3b', padding: '1px 2px', borderRadius: '2px' }}>
+          {email.substring(index, index + filterText.length)}
+        </mark>
+        {email.substring(index + filterText.length)}
+      </>
+    );
   };
 
   if (loading) {
@@ -253,6 +339,8 @@ const BookingManagement: React.FC<BookingManagementProps> = ({ token }) => {
     );
   }
 
+  const filteredBookings = getFilteredBookings();
+
   return (
     <div className="booking-management">
       <div className="section-header">
@@ -263,15 +351,55 @@ const BookingManagement: React.FC<BookingManagementProps> = ({ token }) => {
         </button>
       </div>
 
-      {bookings.length === 0 ? (
+      <div className="booking-filters">
+        <div className="search-container">
+          <div className="search-input-wrapper">
+            <span className="search-icon">🔍</span>
+            <input
+              type="text"
+              placeholder="Search by email address... (Press Esc to clear)"
+              value={emailFilter}
+              onChange={(e) => {
+                setEmailFilter(e.target.value);
+                setCurrentPage(1); // Reset to first page when filtering
+              }}
+              onKeyDown={handleKeyDown}
+              className="email-search-input"
+            />
+            {emailFilter && (
+              <button
+                onClick={handleClearFilter}
+                className="clear-filter-button"
+                title="Clear filter"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          {emailFilter && (
+            <div className="filter-info">
+              <span className="filter-results">
+                Showing {filteredBookings.length} of {bookings.length} bookings
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {filteredBookings.length === 0 ? (
         <div className="empty-state">
           <span className="empty-icon">📝</span>
-          <h3>No bookings found</h3>
-          <p>No customer bookings have been made yet.</p>
+          <h3>{emailFilter ? 'No matching bookings found' : 'No bookings found'}</h3>
+          <p>{emailFilter ? `No bookings found for email containing "${emailFilter}"` : 'No customer bookings have been made yet.'}</p>
+          {emailFilter && (
+            <button onClick={handleClearFilter} className="clear-filter-link">
+              Clear filter and show all bookings
+            </button>
+          )}
         </div>
       ) : (
         <div className="bookings-grid">
-          {bookings.map((booking) => (
+          {filteredBookings.map((booking) => (
             <div key={booking.id} className="booking-card">
               <div className="booking-header">
                 <div className="booking-id">
@@ -286,13 +414,24 @@ const BookingManagement: React.FC<BookingManagementProps> = ({ token }) => {
                 <div className="customer-info">
                   <h4>👤 Customer Information</h4>
                   <p><strong>Name:</strong> {booking.user.name}</p>
-                  <p><strong>Email:</strong> {booking.user.email}</p>
+                  <p><strong>Email:</strong> {highlightEmail(booking.user.email)}</p>
                   <p><strong>Phone:</strong> {booking.user.phone}</p>
                 </div>
 
                 <div className="seat-info">
                   <h4>🪑 Seat Information</h4>
-                  <p><strong>Seats:</strong> {formatSeats(booking.seats)}</p>
+                  <div className="seats-detail">
+                    {booking.seats.map((seat, index) => (
+                      <div key={index} className="seat-item">
+                        <span className="seat-location">Row {seat.rowName} - Seat {seat.seatNumber}</span>
+                        {seat.rowType && (
+                          <span className={`seat-type ${seat.rowType.toLowerCase()}`}>
+                            {seat.rowType}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                   <p><strong>Total Seats:</strong> {booking.totalSeats}</p>
                   <p><strong>Total Price:</strong> {booking.totalPrice} EGP</p>
                 </div>
@@ -353,6 +492,49 @@ const BookingManagement: React.FC<BookingManagementProps> = ({ token }) => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Pagination Controls - Hide when filtering by email since it's client-side filtering */}
+      {pagination && pagination.totalPages > 1 && !emailFilter && (
+        <div className="pagination-container">
+          <div className="pagination-info">
+            <span>
+              Showing {((pagination.currentPage - 1) * pagination.itemsPerPage) + 1} to {' '}
+              {Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)} of {' '}
+              {pagination.totalItems} bookings
+            </span>
+          </div>
+          
+          <div className="pagination-controls">
+            <button
+              onClick={handlePrevPage}
+              disabled={!pagination.hasPreviousPage}
+              className="pagination-button"
+            >
+              ← Previous
+            </button>
+            
+            <div className="page-numbers">
+              {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((pageNum) => (
+                <button
+                  key={pageNum}
+                  onClick={() => handlePageChange(pageNum)}
+                  className={`page-number ${pageNum === pagination.currentPage ? 'active' : ''}`}
+                >
+                  {pageNum}
+                </button>
+              ))}
+            </div>
+            
+            <button
+              onClick={handleNextPage}
+              disabled={!pagination.hasNextPage}
+              className="pagination-button"
+            >
+              Next →
+            </button>
+          </div>
         </div>
       )}
 

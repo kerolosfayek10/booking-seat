@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 import ModernBookingForm from './ModernBookingForm'
+import { buildUrl, ENDPOINTS } from '../config/api'
 import './BookingPage.css'
 
 interface SeatRow {
   id: string
   name: string
+  type: 'Ground' | 'Balcony'
   seats: number[]
   createdAt: string
 }
@@ -22,7 +24,8 @@ const BookingPage: React.FC = () => {
   const fetchSeatRows = async () => {
     try {
       setLoading(true)
-      const response = await axios.get('https://booking-seat-kyna.vercel.app/seat-rows')
+      // Fetch all seat rows (both Ground and Balcony)
+      const response = await axios.get(buildUrl(ENDPOINTS.SEAT_ROWS.LIST))
       setSeatRows(response.data)
     } catch (err) {
       setError('Failed to fetch seat data')

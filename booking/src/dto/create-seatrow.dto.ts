@@ -1,5 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsArray, IsInt, IsNotEmpty } from 'class-validator';
+import { IsString, IsArray, IsInt, IsNotEmpty, IsEnum, IsOptional } from 'class-validator';
+
+export enum SeatRowType {
+  Ground = 'Ground',
+  Balcony = 'Balcony'
+}
 
 export class CreateSeatRowDto {
   @ApiProperty({
@@ -9,6 +14,15 @@ export class CreateSeatRowDto {
   @IsString()
   @IsNotEmpty()
   name: string;
+
+  @ApiProperty({
+    description: 'Type of seat row',
+    enum: SeatRowType,
+    example: SeatRowType.Ground
+  })
+  @IsEnum(SeatRowType)
+  @IsOptional()
+  type?: SeatRowType;
 
   @ApiProperty({
     description: 'Array of available seat numbers',
