@@ -1,13 +1,13 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
-import { CreateSeatRowDto } from '../dto/create-seatrow.dto';
+import { CreateSeatRowDto, SeatRowType } from '../dto/create-seatrow.dto';
 
 @Injectable()
 export class SeatRowService {
   constructor(private prisma: PrismaService) {}
 
   async createSeatRow(createSeatRowDto: CreateSeatRowDto) {
-    const { name, seats } = createSeatRowDto;
+    const { name, seats, type } = createSeatRowDto;
 
     // Check if seat row with this name already exists
     const existingSeatRow = await this.prisma.seatRow.findFirst({
@@ -26,8 +26,10 @@ export class SeatRowService {
     });
   }
 
-  async getAllSeatRows() {
+  async getAllSeatRows(type?: SeatRowType) {
+    const whereClause = type ? { type } : undefined;
     return await this.prisma.seatRow.findMany({
+      where: whereClause,
       orderBy: {
         name: 'asc'
       }

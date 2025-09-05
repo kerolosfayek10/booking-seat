@@ -1,11 +1,13 @@
 import React, { useState } from 'react'
 import axios from 'axios'
 import Dialog from './Dialog'
+import { buildUrl, ENDPOINTS } from '../config/api'
 import './ModernBookingForm.css'
 
 interface SeatRow {
   id: string
   name: string
+  type: 'Ground' | 'Balcony'
   seats: number[]
   createdAt: string
 }
@@ -14,6 +16,7 @@ interface SelectedSeat {
   rowId: string
   rowName: string
   seatNumber: number
+  rowType?: string
 }
 
 interface ModernBookingFormProps {
@@ -23,6 +26,7 @@ interface ModernBookingFormProps {
 
 const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows, onSubmit }) => {
   const [step, setStep] = useState<'selection' | 'payment'>('selection')
+  const [selectedSeatType, setSelectedSeatType] = useState<'Ground' | 'Balcony' | null>(null)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -59,6 +63,36 @@ const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows, onSubmi
     setDialogState(prev => ({ ...prev, isOpen: false }));
   };
 
+  const handleSeatTypeSelection = (type: 'Ground' | 'Balcony') => {
+    setSelectedSeatType(type)
+    // Clear selected seats when switching types
+    setSelectedSeats([])
+  }
+
+  const getFilteredSeatRows = () => {
+    if (!selectedSeatType) return []
+    return seatRows.filter(row => row.type === selectedSeatType)
+  }
+
+  const getSeatLayoutImage = () => {
+    if (!selectedSeatType) return null
+    
+    if (selectedSeatType === 'Ground') {
+      return 'https://gkaigrqfrpseoxfqpbff.supabase.co/storage/v1/object/public/booking/receipts/WhatsApp%20Image%202025-09-04%20at%2021.40.20_e2569ef9.jpg'
+    } else if (selectedSeatType === 'Balcony') {
+      // Balcony image - replace this URL with your balcony seating layout image
+      return 'https://gkaigrqfrpseoxfqpbff.supabase.co/storage/v1/object/public/booking/receipts/WhatsApp%20Image%202025-08-29%20at%2023.59.38_4baab518.jpg'
+    }
+    return null
+  }
+
+  const handleViewSeatChart = () => {
+    const imageUrl = getSeatLayoutImage()
+    if (imageUrl) {
+      window.open(imageUrl, '_blank', 'noopener,noreferrer')
+    }
+  }
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({
@@ -75,7 +109,13 @@ const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows, onSubmi
         return prev.filter(s => !(s.rowId === rowId && s.seatNumber === seatNumber))
       } else {
         // If seat is not selected, add it
-        return [...prev, { rowId, rowName, seatNumber }]
+        const seatRow = seatRows.find(row => row.id === rowId)
+        return [...prev, { 
+          rowId, 
+          rowName, 
+          seatNumber, 
+          rowType: seatRow?.type 
+        }]
       }
     })
   }
@@ -157,7 +197,8 @@ const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows, onSubmi
       // Prepare booking data for API
       const seats = selectedSeats.map(seat => ({
         seatRowId: seat.rowId,
-        seatNumber: seat.seatNumber
+        seatNumber: seat.seatNumber,
+        rowType: seat.rowType
       }))
 
       // Create FormData for multipart request
@@ -168,7 +209,7 @@ const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows, onSubmi
       formDataToSend.append('seats', JSON.stringify(seats))
 
       // Send booking request to API
-      const response = await axios.post('http://localhost:3001/bookings', formDataToSend, {
+      const response = await axios.post(buildUrl(ENDPOINTS.BOOKINGS.CREATE), formDataToSend, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -180,12 +221,34 @@ const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows, onSubmi
         setBookingData(response.data.data)
         setStep('payment')
       } else {
-        showDialog('error', 'Booking Failed', 'Booking failed. Please try again.')
+        // Handle specific error responses from backend
+        if (response.data.error === 'DUPLICATE_BOOKING') {
+          showDialog(
+            'warning',
+            'Email Already Used',
+            `This email address has already been used to make a booking. Each email can only be used once. Please use a different email address or contact support if you need assistance with your existing booking.`
+          )
+        } else {
+          showDialog('error', 'Booking Failed', response.data.message || 'Booking failed. Please try again.')
+        }
       }
     } catch (error) {
       console.error('Booking error:', error)
       if (axios.isAxiosError(error) && error.response?.data?.message) {
-        showDialog('error', 'Booking Failed', `Booking failed: ${error.response.data.message}`)
+        // Get the error message from the response
+        const errorMessage = error.response.data.message || 'Unknown error'
+        console.log('Booking error message:', errorMessage)
+        
+        // Check for specific duplicate booking error
+        if (errorMessage.includes('already has a booking') || errorMessage.includes('Only one booking per user') || errorMessage.includes('Only one booking per user is allowed')) {
+          showDialog(
+            'warning', 
+            'Email Already Used', 
+            `This email address has already been used to make a booking. Each email can only be used once. Please use a different email address or contact support if you need assistance with your existing booking.`
+          )
+        } else {
+          showDialog('error', 'Booking Failed', `Booking failed: ${errorMessage}`)
+        }
       } else {
         showDialog('error', 'Booking Failed', 'Booking failed. Please check your connection and try again.')
       }
@@ -213,7 +276,7 @@ const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows, onSubmi
       const formDataToSend = new FormData()
       formDataToSend.append('receipt', paymentImage)
 
-      const response = await axios.patch(`http://localhost:3001/bookings/${bookingId}/receipt`, formDataToSend, {
+      const response = await axios.patch(buildUrl(ENDPOINTS.BOOKINGS.UPDATE_RECEIPT(bookingId)), formDataToSend, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -242,6 +305,7 @@ const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows, onSubmi
     // Reset form
     setFormData({ name: '', email: '', phone: '' })
     setSelectedSeats([])
+    setSelectedSeatType(null)
     setPaymentImage(null)
     setBookingId(null)
     setBookingData(null)
@@ -290,59 +354,151 @@ const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows, onSubmi
           </div>
 
           <div className="seats-container">
-            <div className="instruction-with-chart">
-              <p className="instruction">To choose your seat, please check the seating chart</p>
-              <a 
-                href="https://kfkhnzglgogtrtzzzdcz.supabase.co/storage/v1/object/public/booking/receipts/WhatsApp%20Image%202025-08-29%20at%2023.59.38_4baab518.jpg" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="chart-link"
-              >
-                📋 View Seating Chart
-              </a>
-            </div>
-            
-            <div className="seats-grid">
-              {seatRows.map(row => (
-                <div key={row.id} className="seat-row">
-                  <div className="row-header">
-                    <div className="row-info">
-                      <span className="row-number">Row {row.name}</span>
-                      <span className="available">{row.seats.length} available</span>
+            {!selectedSeatType ? (
+              <div className="seat-type-selection">
+                <h2>Choose Your Seating Area</h2>
+                <p className="instruction">Select your preferred seating area to view available seats and layout</p>
+                
+                <div className="seat-type-options">
+                  <div className="seat-type-card ground">
+                    <div className="seat-type-header">
+                      <div className="seat-type-icon">🏛️</div>
+                      <div className="seat-type-title">
+                        <h3>Ground Floor</h3>
+                        <p>Lower level seating - Close to stage</p>
+                      </div>
                     </div>
-                    <div className="selected-count">
-                      {getRowSelectedSeats(row.id).length} selected
+                    <div className="seat-type-actions">
+                      <button 
+                        type="button" 
+                        className="select-area-btn"
+                        onClick={() => handleSeatTypeSelection('Ground')}
+                      >
+                        Select Ground Floor
+                      </button>
                     </div>
                   </div>
                   
-                  <div className="seat-map">
-                    {row.seats.map((seatNumber) => {
-                      const isSelected = isSeatSelected(row.id, seatNumber)
-                      
-                      return (
-                        <button
-                          key={seatNumber}
-                          type="button"
-                          className={`seat available ${isSelected ? 'selected' : ''}`}
-                          onClick={() => handleSeatClick(row.id, row.name, seatNumber)}
-                          title={`Seat ${seatNumber} ${isSelected ? '(Selected)' : '(Available)'}`}
-                        >
-                          {seatNumber}
-                        </button>
-                      )
-                    })}
+                  <div className="seat-type-card balcony">
+                    <div className="seat-type-header">
+                      <div className="seat-type-icon">🏢</div>
+                      <div className="seat-type-title">
+                        <h3>Balcony</h3>
+                        <p>Upper level seating - Elevated view</p>
+                      </div>
+                    </div>
+                    <div className="seat-type-actions">
+                      <button 
+                        type="button" 
+                        className="select-area-btn"
+                        onClick={() => handleSeatTypeSelection('Balcony')}
+                      >
+                        Select Balcony
+                      </button>
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
+              </div>
+            ) : (
+              <>
+                <div className="selected-area-header">
+                  <div className="area-info">
+                    <h2>{selectedSeatType} Seating</h2>
+                    <div className="area-actions">
+                      <button 
+                        type="button" 
+                        className="view-chart-btn"
+                        onClick={handleViewSeatChart}
+                      >
+                        📋 View Seat Chart
+                      </button>
+                      <button 
+                        type="button" 
+                        className="change-area-btn"
+                        onClick={() => setSelectedSeatType(null)}
+                      >
+                        Change Area
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="instruction-with-chart">
+                    <p className="instruction">Select your seats below. Click "View Seat Chart" to see the detailed layout.</p>
+                  </div>
+                </div>
+                
+                <div className="seats-grid">
+                  {getFilteredSeatRows().length === 0 ? (
+                    <div className="no-seats-message">
+                      <p>No available seats in {selectedSeatType} area</p>
+                    </div>
+                  ) : (
+                    getFilteredSeatRows()
+                      .sort((a, b) => a.name.localeCompare(b.name)) // Sort rows alphabetically
+                      .map(row => (
+                      <div key={row.id} className="seat-row">
+                        <div className="row-header">
+                          <div className="row-info">
+                            <span className="row-number">Row {row.name}</span>
+                            <span className="row-type">{row.type}</span>
+                            {row.seats.length === 0 ? (
+                              <span className="no-available">No available seats</span>
+                            ) : (
+                              <span className="available">{row.seats.length} available</span>
+                            )}
+                          </div>
+                          <div className="selected-count">
+                            {getRowSelectedSeats(row.id).length} selected
+                          </div>
+                        </div>
+                        
+                        {row.seats.length === 0 ? (
+                          <div className="empty-row-message">
+                            <p>No available seats in this row</p>
+                          </div>
+                        ) : (
+                          <div className="seat-map">
+                            {row.seats
+                              .sort((a, b) => a - b) // Sort seats numerically
+                              .map((seatNumber) => {
+                              const isSelected = isSeatSelected(row.id, seatNumber)
+                              
+                              return (
+                                <button
+                                  key={seatNumber}
+                                  type="button"
+                                  className={`seat available ${isSelected ? 'selected' : ''}`}
+                                  onClick={() => handleSeatClick(row.id, row.name, seatNumber)}
+                                  title={`Seat ${seatNumber} ${isSelected ? '(Selected)' : '(Available)'}`}
+                                >
+                                  {seatNumber}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
 
             {selectedSeats.length > 0 && (
               <div className="selection-summary">
                 <h3>Selected: {getTotalSeats()} seats</h3>
                 <div className="selected-list">
-                  {selectedSeats.map(seat => (
+                  {selectedSeats
+                    .sort((a, b) => {
+                      // Sort by row name first, then by seat number
+                      if (a.rowName !== b.rowName) {
+                        return a.rowName.localeCompare(b.rowName);
+                      }
+                      return a.seatNumber - b.seatNumber;
+                    })
+                    .map(seat => (
                     <span key={`${seat.rowId}-${seat.seatNumber}`} className="selected-item">
-                      Row {seat.rowName} Seat {seat.seatNumber}
+                      {seat.rowType} - Row {seat.rowName} Seat {seat.seatNumber}
                     </span>
                   ))}
                 </div>
@@ -402,7 +558,7 @@ const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows, onSubmi
               </div>
               {selectedSeats.map(seat => (
                 <div key={`${seat.rowId}-${seat.seatNumber}`} className="receipt-detail">
-                  Row {seat.rowName} - Seat {seat.seatNumber}
+                  {seat.rowType} - Row {seat.rowName} - Seat {seat.seatNumber}
                 </div>
               ))}
               <div className="receipt-row">

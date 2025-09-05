@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Dialog from './Dialog';
+import { buildUrl, ENDPOINTS } from '../config/api';
 import './SeatManagement.css';
 
 interface SeatRow {
@@ -66,7 +67,7 @@ const SeatManagement: React.FC<SeatManagementProps> = ({ token }) => {
       setLoading(true);
       setError('');
       
-      const response = await axios.get<SeatRow[]>('http://localhost:3001/seat-rows', {
+      const response = await axios.get<SeatRow[]>(buildUrl(ENDPOINTS.SEAT_ROWS.LIST), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -118,7 +119,7 @@ const SeatManagement: React.FC<SeatManagementProps> = ({ token }) => {
       setAddingSeatToRow(rowId);
       
       const response = await axios.patch<AddSeatResponse>(
-        `http://localhost:3001/seat-rows/${rowId}/add-seat`,
+        buildUrl(ENDPOINTS.SEAT_ROWS.ADD_SEAT(rowId)),
         { seatNumber },
         {
           headers: {

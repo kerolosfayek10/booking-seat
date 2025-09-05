@@ -39,10 +39,43 @@ export class BookingService {
         });
       }
 
+      // Check seat availability first (before checking user duplicates)
+      // This prevents the transaction from failing due to seat issues
+      for (const seat of seats) {
+        const seatRow = await this.seatRowService.getSeatRowById(seat.seatRowId);
+        if (!seatRow.seats.includes(seat.seatNumber)) {
+          throw new BadRequestException(`Seat ${seat.seatNumber} is not available in row ${seatRow.name}. Please refresh and try again.`);
+        }
+      }
+
+      // Check if user already has a booking (unique email constraint)
+      const existingBooking = await this.prisma.booking.findFirst({
+        where: { userId: user.id }
+      });
+
+      if (existingBooking) {
+        console.log(`Duplicate booking attempt for user ${user.id} with email ${email}`);
+        return {
+          success: false,
+          message: `User with email ${email} already has a booking. Only one booking per user is allowed.`,
+          error: 'DUPLICATE_BOOKING',
+          data: null
+        };
+      }
+
       // Upload receipt if provided
       let receiptUrl: string | null = null;
       if (receiptFile) {
-        receiptUrl = await this.supabaseService.uploadReceipt(receiptFile, user.id);
+        try {
+          console.log('Starting receipt upload for user:', user.id);
+          receiptUrl = await this.supabaseService.uploadReceipt(receiptFile, user.id);
+          console.log('Receipt upload completed:', receiptUrl);
+        } catch (uploadError) {
+          console.error('Receipt upload failed:', uploadError);
+          // Don't fail the entire booking if just the receipt upload fails
+          // We'll continue with the booking but set receiptUrl to null
+          receiptUrl = null;
+        }
       }
 
       // Remove seats from SeatRow and create booking
@@ -82,23 +115,43 @@ export class BookingService {
         });
       });
 
-      return {
-        success: true,
-        message: 'Booking created successfully',
-        data: {
-          bookingId: booking.id,
-          user: booking.user,
-          seats: booking.seats,
-          totalPrice: booking.totalPrice,
-          isPaid: booking.isPaid,
-          receiptUrl: (booking as any).receiptUrl || receiptUrl,
-          createdAt: booking.createdAt
-        }
-      };
+              // Format seats with row type from the request
+        const formattedSeats = booking.seats.map(seat => {
+          const originalSeat = seats.find(s => s.seatRowId === seat.seatRowId && s.seatNumber === seat.seatNumber);
+          return {
+            ...seat,
+            rowType: originalSeat?.rowType || 'Ground' // fallback to Ground if not provided
+          };
+        });
+
+        return {
+          success: true,
+          message: 'Booking created successfully',
+          data: {
+            bookingId: booking.id,
+            user: booking.user,
+            seats: formattedSeats,
+            totalPrice: booking.totalPrice,
+            isPaid: booking.isPaid,
+            receiptUrl: (booking as any).receiptUrl || receiptUrl,
+            createdAt: booking.createdAt
+          }
+        };
 
     } catch (error) {
       console.error('Booking creation failed:', error);
-      throw new BadRequestException('Failed to create booking. Please try again.');
+      console.error('Error type:', error.constructor.name);
+      console.error('Error message:', error.message);
+      
+      // If it's already a BadRequestException, pass it through to preserve the original message
+      if (error instanceof BadRequestException) {
+        console.log('Passing through BadRequestException with message:', error.message);
+        throw error;
+      } else {
+        // For other errors, use a generic message
+        console.log('Converting unknown error to generic BadRequestException');
+        throw new BadRequestException('Failed to create booking. Please try again.');
+      }
     }
   }
 
@@ -129,8 +182,16 @@ export class BookingService {
     return booking;
   }
 
-  async getAllBookings() {
+  async getAllBookings(page: number = 1, limit: number = 5) {
+    const skip = (page - 1) * limit;
+
+    // Get total count for pagination
+    const totalBookings = await this.prisma.booking.count();
+    const totalPages = Math.ceil(totalBookings / limit);
+
     const bookings = await this.prisma.booking.findMany({
+      skip,
+      take: limit,
       include: {
         user: {
           select: {
@@ -144,7 +205,8 @@ export class BookingService {
           include: {
             seatRow: {
               select: {
-                name: true
+                name: true,
+                type: true
               }
             }
           }
@@ -161,12 +223,13 @@ export class BookingService {
     });
 
     // Format the response with user data and formatted seats array
-    return bookings.map(booking => ({
+    const formattedBookings = bookings.map(booking => ({
       id: booking.id,
       user: booking.user,
       seats: booking.seats.map(seat => ({
         rowName: seat.seatRow.name,
-        seatNumber: seat.seatNumber
+        seatNumber: seat.seatNumber,
+        rowType: seat.seatRow.type
       })),
       totalSeats: booking.seats.length,
       totalPrice: booking.totalPrice,
@@ -174,6 +237,18 @@ export class BookingService {
       receiptUrl: (booking as any).receiptUrl || null,
       createdAt: booking.createdAt
     }));
+
+    return {
+      bookings: formattedBookings,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems: totalBookings,
+        itemsPerPage: limit,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1
+      }
+    };
   }
 
   async updatePaymentStatusByBookingId(bookingId: string, isPaid: boolean) {
@@ -193,7 +268,7 @@ export class BookingService {
           seats: {
             include: {
               seatRow: {
-                select: { name: true }
+                select: { name: true, type: true }
               }
             }
           }
@@ -212,27 +287,64 @@ export class BookingService {
 
       // If payment is marked as true, send confirmation email
       if (isPaid) {
+        // For email, we need to get the seat row information to send proper row types
+        const emailSeats: Array<{
+          rowName: string;
+          seatNumber: number;
+          rowType: string;
+        }> = [];
+        
+        for (const seat of booking.seats) {
+          const seatRowInfo = await this.prisma.seatRow.findUnique({
+            where: { id: seat.seatRowId },
+            select: { name: true, type: true }
+          });
+          emailSeats.push({
+            rowName: seatRowInfo?.name || 'Unknown',
+            seatNumber: seat.seatNumber,
+            rowType: String(seatRowInfo?.type || 'Ground')
+          });
+        }
+
         const emailData: EmailJobData = {
           userEmail: booking.user.email,
           userName: booking.user.name,
           totalSeats: booking.seats.length,
-          seats: booking.seats.map(seat => ({
-            rowName: seat.seatRow.name,
-            seatNumber: seat.seatNumber
-          }))
+          seats: emailSeats
         };
 
-        // Add email job to queue
-        await this.emailQueue.add('booking-confirmation', emailData, {
-          delay: 1000, // Send email after 1 second delay
-          attempts: 3, // Retry up to 3 times if failed
-          backoff: {
-            type: 'exponential',
-            delay: 2000,
-          },
-        });
+        try {
+          // Try to add email job to queue
+          await this.emailQueue.add('booking-confirmation', emailData, {
+            delay: 1000, // Send email after 1 second delay
+            attempts: 3, // Retry up to 3 times if failed
+            backoff: {
+              type: 'exponential',
+              delay: 2000,
+            },
+          });
 
-        console.log(`Email job queued for booking ${bookingId} to ${booking.user.email}`);
+          console.log(`Email job queued for booking ${bookingId} to ${booking.user.email}`);
+        } catch (queueError) {
+          console.error('Failed to queue email job:', queueError);
+          console.log('Attempting to send email directly...');
+          
+          // Fallback: Try to send email directly without queue
+          try {
+            const emailService = new (await import('./email.service')).EmailService();
+            const result = await emailService.sendBookingConfirmation(
+              emailData.userEmail,
+              emailData.userName,
+              emailData.totalSeats,
+              emailData.seats
+            );
+            console.log('Direct email send result:', result);
+          } catch (directEmailError) {
+            console.error('Direct email send also failed:', directEmailError);
+            // Continue with the response even if email fails
+            // The booking status is still updated
+          }
+        }
       }
 
       return {

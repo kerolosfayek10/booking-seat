@@ -6,6 +6,12 @@ export class EmailService {
   private transporter: nodemailer.Transporter;
 
   constructor() {
+    // Check if email configuration is available
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.warn('Email configuration missing. EMAIL_USER and EMAIL_PASS environment variables are required.');
+      console.warn('Emails will not be sent until proper configuration is provided.');
+    }
+
     // Configure your email transporter (example with Gmail)
     this.transporter = nodemailer.createTransport({
       service: 'gmail',
@@ -13,17 +19,34 @@ export class EmailService {
         user: process.env.EMAIL_USER, // Your email
         pass: process.env.EMAIL_PASS, // Your email password or app password
       },
+      secure: true, // Use TLS
+      logger: true, // Enable logging for debugging
+      debug: false, // Set to true for detailed debugging
     });
+
+    // Test the connection
+    this.testConnection();
+  }
+
+  private async testConnection() {
+    try {
+      await this.transporter.verify();
+      console.log('✅ Email service connection verified successfully');
+    } catch (error) {
+      console.error('❌ Email service connection failed:', error.message);
+      console.error('Please check your EMAIL_USER and EMAIL_PASS environment variables');
+      console.error('For Gmail, make sure you\'re using an App Password, not your regular password');
+    }
   }
 
   async sendBookingConfirmation(
     userEmail: string,
     userName: string,
     totalSeats: number,
-    seats: Array<{ rowName: string; seatNumber: number }>
+    seats: Array<{ rowName: string; seatNumber: number; rowType: string }>
   ) {
     const seatDetails = seats
-      .map(seat => `Row ${seat.rowName}, Seat ${seat.seatNumber}`)
+      .map(seat => `${seat.rowType} - Row ${seat.rowName}, Seat ${seat.seatNumber}`)
       .join('\n');
 
     const mailOptions = {
@@ -58,13 +81,42 @@ export class EmailService {
       `,
     };
 
+    // Check if email configuration is available before attempting to send
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.error('Cannot send email: EMAIL_USER and EMAIL_PASS environment variables are not configured');
+      return { 
+        success: false, 
+        message: 'Email configuration missing', 
+        error: 'EMAIL_USER and EMAIL_PASS environment variables are required' 
+      };
+    }
+
     try {
-      await this.transporter.sendMail(mailOptions);
-      console.log(`Booking confirmation email sent to: ${userEmail}`);
-      return { success: true, message: 'Email sent successfully' };
+      const info = await this.transporter.sendMail(mailOptions);;
+      return { 
+        success: true, 
+        message: 'Email sent successfully',
+        messageId: info.messageId
+      };
     } catch (error) {
-      console.error('Failed to send email:', error);
-      return { success: false, message: 'Failed to send email', error };
+      console.error('❌ Failed to send email:', error);
+      
+      // Provide more specific error messages
+      let errorMessage = 'Failed to send email';
+      if (error.code === 'EAUTH') {
+        errorMessage = 'Email authentication failed. Please check your email credentials.';
+      } else if (error.code === 'ECONNECTION') {
+        errorMessage = 'Cannot connect to email server. Please check your internet connection.';
+      } else if (error.responseCode === 535) {
+        errorMessage = 'Invalid email credentials. For Gmail, use an App Password instead of your regular password.';
+      }
+      
+      return { 
+        success: false, 
+        message: errorMessage, 
+        error: error.message,
+        code: error.code 
+      };
     }
   }
 }

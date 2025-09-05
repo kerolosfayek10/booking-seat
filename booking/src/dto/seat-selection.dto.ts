@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsInt, IsNotEmpty } from 'class-validator';
+import { IsString, IsInt, IsNotEmpty, IsOptional } from 'class-validator';
 
 export class SeatSelectionDto {
   @ApiProperty({
@@ -16,4 +16,13 @@ export class SeatSelectionDto {
   })
   @IsInt()
   seatNumber: number;
+
+  @ApiProperty({
+    description: 'Seat row type (Ground or Balcony)',
+    example: 'Ground',
+    required: false
+  })
+  @IsString()
+  @IsOptional()
+  rowType?: string;
 }

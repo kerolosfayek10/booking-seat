@@ -70,7 +70,9 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
         
         // Delay navigation to show success message
         setTimeout(() => {
-          onLoginSuccess(response.data.data.accessToken);
+          if (response.data.data?.accessToken) {
+            onLoginSuccess(response.data.data.accessToken);
+          }
         }, 1500);
       } else {
         showDialog('error', 'Login Failed', 'Login failed. Please try again.');

@@ -6,7 +6,9 @@ import {
   Delete,
   Body, 
   Param, 
+  Query,
   UseInterceptors, 
+  UseGuards,
   UploadedFile,
   BadRequestException
 } from '@nestjs/common';
@@ -17,12 +19,15 @@ import {
   ApiResponse, 
   ApiConsumes, 
   ApiBody,
-  ApiParam
+  ApiParam,
+  ApiQuery,
+  ApiBearerAuth
 } from '@nestjs/swagger';
 import { BookingService } from '../services/booking.service';
 import { CreateBookingDto } from '../dto/create-booking.dto';
 import { PrismaService } from '../services/prisma.service';
-
+import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+// 
 @ApiTags('Bookings')
 @Controller('bookings')
 export class BookingController {
@@ -101,13 +106,16 @@ export class BookingController {
     @UploadedFile() receipt?: Express.Multer.File
   ) {
     try {
+      console.log('Controller received booking request for email:', body.email);
+      
       // Parse seats from JSON string (needed for multipart/form-data)
       const seats = typeof body.seats === 'string' 
         ? JSON.parse(body.seats) 
         : body.seats;
 
       // Quick validation: check if seats are already booked
-      await this.checkSeatsAvailability(seats);
+      // Note: Detailed seat validation is done in the service layer
+      // await this.checkSeatsAvailability(seats);
 
       const createBookingDto: CreateBookingDto = {
         name: body.name,
@@ -116,12 +124,44 @@ export class BookingController {
         seats: seats
       };
 
+      console.log('Controller calling service with DTO:', { 
+        name: createBookingDto.name, 
+        email: createBookingDto.email, 
+        seatsCount: createBookingDto.seats.length 
+      });
+
       return await this.bookingService.createBooking(createBookingDto, receipt);
     } catch (error) {
       if (error instanceof SyntaxError) {
         throw new BadRequestException('Invalid seats JSON format');
       }
-      throw error;
+      
+      // Handle file upload specific errors
+      if (error.message?.includes('File size exceeds')) {
+        throw new BadRequestException('Receipt file is too large. Maximum size is 10MB.');
+      }
+      
+      if (error.message?.includes('File type not supported')) {
+        throw new BadRequestException('Receipt file type not supported. Please use JPG, PNG, GIF, or PDF.');
+      }
+      
+      if (error.message?.includes('Upload failed after')) {
+        throw new BadRequestException('Receipt upload failed. Please check your connection and try again.');
+      }
+      
+      console.error('Controller booking creation error:', error);
+      console.error('Controller error type:', error.constructor.name);
+      console.error('Controller error message:', error.message);
+      
+      // Pass through BadRequestException errors with their original messages
+      if (error instanceof BadRequestException) {
+        console.log('Controller passing through BadRequestException:', error.message);
+        throw error;
+      } else {
+        // For unexpected errors, use a generic message
+        console.log('Controller converting unknown error to generic message');
+        throw new BadRequestException('An unexpected error occurred. Please try again.');
+      }
     }
   }
 
@@ -173,49 +213,95 @@ export class BookingController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ 
-    summary: 'Get all bookings',
-    description: 'Retrieve all bookings with user data and formatted seat information'
+    summary: 'Get all bookings with pagination',
+    description: 'Retrieve all bookings with user data and formatted seat information, paginated results'
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (default: 1)',
+    example: 1
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items per page (default: 5)',
+    example: 5
   })
   @ApiResponse({ 
     status: 200, 
-    description: 'List of all bookings with user data and seat details',
+    description: 'Paginated list of bookings with user data and seat details',
     schema: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', example: 'clp1234567890' },
-          user: {
+      type: 'object',
+      properties: {
+        bookings: {
+          type: 'array',
+          items: {
             type: 'object',
             properties: {
-              id: { type: 'string' },
-              name: { type: 'string', example: 'Ahmed Mohamed' },
-              email: { type: 'string', example: 'ahmed@example.com' },
-              phone: { type: 'string', example: '+201234567890' }
+              id: { type: 'string', example: 'clp1234567890' },
+              user: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  name: { type: 'string', example: 'Ahmed Mohamed' },
+                  email: { type: 'string', example: 'ahmed@example.com' },
+                  phone: { type: 'string', example: '+201234567890' }
+                }
+              },
+              seats: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    rowName: { type: 'string', example: 'Row A' },
+                    seatNumber: { type: 'number', example: 1 }
+                  }
+                }
+              },
+              totalSeats: { type: 'number', example: 2, description: 'Total number of seats booked' },
+              totalPrice: { type: 'number', example: 100.0 },
+              isPaid: { type: 'boolean', example: false },
+              receiptUrl: { type: 'string', nullable: true, example: 'https://storage.url/receipt.jpg' },
+              createdAt: { type: 'string', format: 'date-time' }
             }
-          },
-          seats: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                rowName: { type: 'string', example: 'Row A' },
-                seatNumber: { type: 'number', example: 1 }
-              }
-            }
-          },
-          totalSeats: { type: 'number', example: 2, description: 'Total number of seats booked' },
-          totalPrice: { type: 'number', example: 100.0 },
-          isPaid: { type: 'boolean', example: false },
-          receiptUrl: { type: 'string', nullable: true, example: 'https://storage.url/receipt.jpg' },
-          createdAt: { type: 'string', format: 'date-time' }
+          }
+        },
+        pagination: {
+          type: 'object',
+          properties: {
+            currentPage: { type: 'number', example: 1 },
+            totalPages: { type: 'number', example: 3 },
+            totalItems: { type: 'number', example: 15 },
+            itemsPerPage: { type: 'number', example: 5 },
+            hasNextPage: { type: 'boolean', example: true },
+            hasPreviousPage: { type: 'boolean', example: false }
+          }
         }
       }
     }
   })
-  async getAllBookings() {
-    return await this.bookingService.getAllBookings();
+  async getAllBookings(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string
+  ) {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 5;
+    
+    // Validate pagination parameters
+    if (pageNum < 1) {
+      throw new BadRequestException('Page number must be greater than 0');
+    }
+    if (limitNum < 1 || limitNum > 100) {
+      throw new BadRequestException('Limit must be between 1 and 100');
+    }
+    
+    return await this.bookingService.getAllBookings(pageNum, limitNum);
   }
 
   @Get(':id')
@@ -241,6 +327,8 @@ export class BookingController {
   }
 
   @Patch(':bookingId/payment')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ 
     summary: 'Update payment status by booking ID',
     description: 'Update the isPaid status for a specific booking and trigger email confirmation'
@@ -275,7 +363,15 @@ export class BookingController {
     @Param('bookingId') bookingId: string,
     @Body() body: { isPaid: boolean }
   ) {
-    return await this.bookingService.updatePaymentStatusByBookingId(bookingId, body.isPaid);
+    console.log(`Payment update request for booking ${bookingId}, isPaid: ${body.isPaid}`);
+    try {
+      const result = await this.bookingService.updatePaymentStatusByBookingId(bookingId, body.isPaid);
+      console.log('Payment update successful:', result);
+      return result;
+    } catch (error) {
+      console.error('Payment update failed:', error);
+      throw error;
+    }
   }
 
   @Patch(':bookingId/receipt')
@@ -338,6 +434,8 @@ export class BookingController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ 
     summary: 'Delete booking by ID',
     description: 'Delete a booking and all associated seat bookings, returning seats to available pool'
@@ -381,5 +479,56 @@ export class BookingController {
   })
   async deleteBooking(@Param('id') id: string) {
     return await this.bookingService.deleteBooking(id);
+  }
+
+  @Post('test-email')
+  @ApiOperation({ 
+    summary: 'Test email configuration',
+    description: 'Send a test email to verify email service is working'
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: {
+          type: 'string',
+          example: 'test@example.com',
+          description: 'Email address to send test email to'
+        }
+      },
+      required: ['email']
+    }
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Test email sent or error details returned' 
+  })
+  async testEmail(@Body() body: { email: string }) {
+    try {
+      const { EmailService } = await import('../services/email.service');
+      const emailService = new EmailService();
+      
+      const result = await emailService.sendBookingConfirmation(
+        body.email,
+        'Test User',
+        2,
+        [
+          { rowName: 'A', seatNumber: 1, rowType: 'Ground' },
+          { rowName: 'A', seatNumber: 2, rowType: 'Ground' }
+        ]
+      );
+      
+      return {
+        success: true,
+        message: 'Test email sent',
+        emailResult: result
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Test email failed',
+        error: error.message
+      };
+    }
   }
 }
