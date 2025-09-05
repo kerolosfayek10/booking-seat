@@ -24,10 +24,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
       signOptions: { expiresIn: '24h' },
     }),
     BullModule.forRoot({
-      redis: {
-        host: process.env.REDIS_HOST || 'localhost',
-        port:  6379,
-      },
+      redis: process.env.UPSTASH_REDIS_URL,
     }),
     BullModule.registerQueue({
       name: 'email',
