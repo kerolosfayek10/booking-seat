@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 import Dialog from './Dialog'
 import { buildUrl, ENDPOINTS } from '../config/api'
@@ -17,16 +17,18 @@ interface SelectedSeat {
   rowName: string
   seatNumber: number
   rowType?: string
+  firstName: string
+  lastName: string
 }
 
 interface ModernBookingFormProps {
   seatRows: SeatRow[]
-  onSubmit: (bookingData: any) => Promise<void>
 }
 
-const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows, onSubmit }) => {
+const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows }) => {
   const [step, setStep] = useState<'selection' | 'payment'>('selection')
   const [selectedSeatType, setSelectedSeatType] = useState<'Ground' | 'Balcony' | null>(null)
+  const [balconyVisible, setBalconyVisible] = useState<boolean>(true)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -49,6 +51,34 @@ const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows, onSubmi
     title: '',
     message: ''
   })
+  
+  // State for passenger details modal
+  const [showPassengerModal, setShowPassengerModal] = useState(false)
+  const [currentEditingSeat, setCurrentEditingSeat] = useState<SelectedSeat | null>(null)
+
+  // Fetch balcony visibility setting on component mount
+  useEffect(() => {
+    const fetchBalconyVisibility = async () => {
+      try {
+        const response = await axios.get(buildUrl(ENDPOINTS.SETTINGS.BALCONY_VISIBILITY))
+        setBalconyVisible(response.data.visible)
+      } catch (error) {
+        console.error('Error fetching balcony visibility:', error)
+        // Default to visible if API fails
+        setBalconyVisible(true)
+      }
+    }
+
+    fetchBalconyVisibility()
+  }, [])
+
+  // Clear balcony selections if balcony becomes invisible
+  useEffect(() => {
+    if (!balconyVisible && selectedSeatType === 'Balcony') {
+      setSelectedSeatType(null)
+      setSelectedSeats([])
+    }
+  }, [balconyVisible, selectedSeatType])
 
   const showDialog = (type: 'success' | 'error' | 'warning' | 'info', title: string, message: string) => {
     setDialogState({
@@ -71,7 +101,20 @@ const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows, onSubmi
 
   const getFilteredSeatRows = () => {
     if (!selectedSeatType) return []
-    return seatRows.filter(row => row.type === selectedSeatType)
+    
+    // Filter by selected seat type and balcony visibility
+    const filteredRows = seatRows.filter(row => {
+      if (row.type === selectedSeatType) {
+        // If it's balcony type, check if balcony is visible
+        if (row.type === 'Balcony') {
+          return balconyVisible
+        }
+        return true
+      }
+      return false
+    })
+    
+    return filteredRows
   }
 
   const getSeatLayoutImage = () => {
@@ -102,22 +145,68 @@ const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows, onSubmi
   }
 
   const handleSeatClick = (rowId: string, rowName: string, seatNumber: number) => {
-    setSelectedSeats(prev => {
-      const existing = prev.find(s => s.rowId === rowId && s.seatNumber === seatNumber)
-      if (existing) {
-        // If seat is already selected, deselect it
-        return prev.filter(s => !(s.rowId === rowId && s.seatNumber === seatNumber))
-      } else {
-        // If seat is not selected, add it
-        const seatRow = seatRows.find(row => row.id === rowId)
-        return [...prev, { 
-          rowId, 
-          rowName, 
-          seatNumber, 
-          rowType: seatRow?.type 
-        }]
+    const existing = selectedSeats.find(s => s.rowId === rowId && s.seatNumber === seatNumber)
+    
+    if (existing) {
+      // If seat is already selected, deselect it
+      setSelectedSeats(prev => prev.filter(s => !(s.rowId === rowId && s.seatNumber === seatNumber)))
+    } else {
+      // Check if user is trying to select more than 5 seats
+      if (selectedSeats.length >= 5) {
+        showDialog('warning', 'Maximum Seats Reached', 'You cannot select more than 5 seats per booking.')
+        return
       }
-    })
+      
+      // If seat is not selected, open the passenger details modal
+      const seatRow = seatRows.find(row => row.id === rowId)
+      const newSeat = { 
+        rowId, 
+        rowName, 
+        seatNumber, 
+        rowType: seatRow?.type,
+        firstName: '',
+        lastName: ''
+      }
+      setCurrentEditingSeat(newSeat)
+      setShowPassengerModal(true)
+    }
+  }
+  
+  // Function to save passenger details and add seat
+  const handleSavePassengerDetails = (firstName: string, lastName: string) => {
+    if (!firstName.trim() || !lastName.trim()) {
+      showDialog('warning', 'Missing Information', 'Please enter both first name and last name.')
+      return
+    }
+    
+    console.log('Saving passenger details:', { firstName, lastName });
+    
+    if (currentEditingSeat) {
+      console.log('Current editing seat:', currentEditingSeat);
+      
+      const newSeat = {
+        ...currentEditingSeat,
+        firstName: firstName.trim(),
+        lastName: lastName.trim()
+      };
+      
+      console.log('New seat with passenger details:', newSeat);
+      
+      setSelectedSeats(prev => {
+        const newSeats = [...prev, newSeat];
+        console.log('Updated selected seats:', newSeats);
+        return newSeats;
+      });
+      
+      setCurrentEditingSeat(null)
+      setShowPassengerModal(false)
+    }
+  }
+  
+  // Function to close passenger modal without saving
+  const handleCancelPassengerDetails = () => {
+    setCurrentEditingSeat(null)
+    setShowPassengerModal(false)
   }
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -195,18 +284,39 @@ const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows, onSubmi
     setIsSubmitting(true)
     try {
       // Prepare booking data for API
-      const seats = selectedSeats.map(seat => ({
-        seatRowId: seat.rowId,
-        seatNumber: seat.seatNumber,
-        rowType: seat.rowType
-      }))
+      const seats = selectedSeats.map(seat => {
+        console.log('Preparing seat data:', seat);
+        return {
+          seatRowId: seat.rowId, // This maps rowId from frontend to seatRowId for backend
+          seatNumber: seat.seatNumber,
+          rowType: seat.rowType,
+          firstName: seat.firstName.trim(),
+          lastName: seat.lastName.trim()
+        };
+      })
 
       // Create FormData for multipart request
       const formDataToSend = new FormData()
       formDataToSend.append('name', formData.name)
       formDataToSend.append('email', formData.email)
       formDataToSend.append('phone', formData.phone)
-      formDataToSend.append('seats', JSON.stringify(seats))
+      
+      // Log the seats data before stringifying
+      console.log('Seats data being sent to API:', seats);
+      console.log('Each seat details:');
+      seats.forEach((seat, index) => {
+        console.log(`Seat ${index + 1}:`, {
+          seatRowId: seat.seatRowId,
+          seatNumber: seat.seatNumber,
+          rowType: seat.rowType,
+          firstName: seat.firstName,
+          lastName: seat.lastName
+        });
+      });
+      
+      const seatsJson = JSON.stringify(seats);
+      console.log('Stringified seats JSON:', seatsJson);
+      formDataToSend.append('seats', seatsJson)
 
       // Send booking request to API
       const response = await axios.post(buildUrl(ENDPOINTS.BOOKINGS.CREATE), formDataToSend, {
@@ -234,20 +344,27 @@ const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows, onSubmi
       }
     } catch (error) {
       console.error('Booking error:', error)
-      if (axios.isAxiosError(error) && error.response?.data?.message) {
-        // Get the error message from the response
-        const errorMessage = error.response.data.message || 'Unknown error'
-        console.log('Booking error message:', errorMessage)
+      console.error('Full error object:', JSON.stringify(error, null, 2))
+      if (axios.isAxiosError(error)) {
+        console.error('Error response:', error.response?.data)
+        console.error('Error status:', error.response?.status)
+        console.error('Error headers:', error.response?.headers)
         
-        // Check for specific duplicate booking error
-        if (errorMessage.includes('already has a booking') || errorMessage.includes('Only one booking per user') || errorMessage.includes('Only one booking per user is allowed')) {
-          showDialog(
-            'warning', 
-            'Email Already Used', 
-            `This email address has already been used to make a booking. Each email can only be used once. Please use a different email address or contact support if you need assistance with your existing booking.`
-          )
-        } else {
-          showDialog('error', 'Booking Failed', `Booking failed: ${errorMessage}`)
+        if (error.response?.data?.message) {
+          // Get the error message from the response
+          const errorMessage = error.response.data.message || 'Unknown error'
+          console.log('Booking error message:', errorMessage)
+          
+          // Check for specific duplicate booking error
+          if (errorMessage.includes('already has a booking') || errorMessage.includes('Only one booking per user') || errorMessage.includes('Only one booking per user is allowed')) {
+            showDialog(
+              'warning', 
+              'Email Already Used', 
+              `This email address has already been used to make a booking. Each email can only be used once. Please use a different email address or contact support if you need assistance with your existing booking.`
+            )
+          } else {
+            showDialog('error', 'Booking Failed', `Booking failed: ${errorMessage}`)
+          }
         }
       } else {
         showDialog('error', 'Booking Failed', 'Booking failed. Please check your connection and try again.')
@@ -379,24 +496,26 @@ const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows, onSubmi
                     </div>
                   </div>
                   
-                  <div className="seat-type-card balcony">
-                    <div className="seat-type-header">
-                      <div className="seat-type-icon">🏢</div>
-                      <div className="seat-type-title">
-                        <h3>Balcony</h3>
-                        <p>Upper level seating - Elevated view</p>
+                  {balconyVisible && (
+                    <div className="seat-type-card balcony">
+                      <div className="seat-type-header">
+                        <div className="seat-type-icon">🏢</div>
+                        <div className="seat-type-title">
+                          <h3>Balcony</h3>
+                          <p>Upper level seating - Elevated view</p>
+                        </div>
+                      </div>
+                      <div className="seat-type-actions">
+                        <button 
+                          type="button" 
+                          className="select-area-btn"
+                          onClick={() => handleSeatTypeSelection('Balcony')}
+                        >
+                          Select Balcony
+                        </button>
                       </div>
                     </div>
-                    <div className="seat-type-actions">
-                      <button 
-                        type="button" 
-                        className="select-area-btn"
-                        onClick={() => handleSeatTypeSelection('Balcony')}
-                      >
-                        Select Balcony
-                      </button>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
             ) : (
@@ -499,6 +618,20 @@ const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows, onSubmi
                     .map(seat => (
                     <span key={`${seat.rowId}-${seat.seatNumber}`} className="selected-item">
                       {seat.rowType} - Row {seat.rowName} Seat {seat.seatNumber}
+                      {seat.firstName && seat.lastName && (
+                        <span className="passenger-name"> - {seat.firstName} {seat.lastName}</span>
+                      )}
+                      <button 
+                        type="button" 
+                        className="edit-passenger-btn"
+                        onClick={() => {
+                          setCurrentEditingSeat(seat)
+                          setShowPassengerModal(true)
+                        }}
+                        title="Edit passenger details"
+                      >
+                        ✏️
+                      </button>
                     </span>
                   ))}
                 </div>
@@ -559,6 +692,9 @@ const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows, onSubmi
               {selectedSeats.map(seat => (
                 <div key={`${seat.rowId}-${seat.seatNumber}`} className="receipt-detail">
                   {seat.rowType} - Row {seat.rowName} - Seat {seat.seatNumber}
+                  {seat.firstName && seat.lastName && (
+                    <span className="passenger-name"> - {seat.firstName} {seat.lastName}</span>
+                  )}
                 </div>
               ))}
               <div className="receipt-row">
@@ -677,6 +813,83 @@ const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows, onSubmi
         title={dialogState.title}
         message={dialogState.message}
       />
+      
+      {/* Passenger Details Modal */}
+      {showPassengerModal && currentEditingSeat && (
+        <div className="dialog-overlay">
+          <div className="passenger-details-modal">
+            <div className="dialog-header">
+              <h2>Passenger Details</h2>
+              <button 
+                type="button" 
+                className="close-btn"
+                onClick={handleCancelPassengerDetails}
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="dialog-content">
+              <p className="seat-info">
+                Row {currentEditingSeat.rowName} - Seat {currentEditingSeat.seatNumber} ({currentEditingSeat.rowType})
+              </p>
+              
+              <p className="passenger-info-note">
+                <strong>Please enter details for this seat.</strong> This information will be used for seat assignment and will be visible in your booking confirmation.
+              </p>
+              
+              <form onSubmit={(e) => {
+                e.preventDefault()
+                const form = e.target as HTMLFormElement
+                const firstName = (form.elements.namedItem('firstName') as HTMLInputElement).value
+                const lastName = (form.elements.namedItem('lastName') as HTMLInputElement).value
+                console.log('Form submitted with values:', { firstName, lastName })
+                handleSavePassengerDetails(firstName, lastName)
+              }}>
+                <div className="form-group">
+                  <label htmlFor="firstName">First Name <span className="required">*</span></label>
+                  <input 
+                    type="text" 
+                    id="firstName" 
+                    name="firstName" 
+                    required 
+                    defaultValue={currentEditingSeat.firstName || ''}
+                    placeholder="Enter first name"
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="lastName">Last Name <span className="required">*</span></label>
+                  <input 
+                    type="text" 
+                    id="lastName" 
+                    name="lastName" 
+                    required 
+                    defaultValue={currentEditingSeat.lastName || ''}
+                    placeholder="Enter last name"
+                  />
+                </div>
+                
+                <div className="dialog-footer">
+                  <button 
+                    type="button" 
+                    className="cancel-btn"
+                    onClick={handleCancelPassengerDetails}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="save-btn"
+                  >
+                    Save
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

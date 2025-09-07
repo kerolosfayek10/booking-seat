@@ -7,6 +7,7 @@ import { AppService } from './app.service';
 import { BookingController } from './controllers/booking.controller';
 import { SeatRowController } from './controllers/seatrow.controller';
 import { AuthController } from './controllers/auth.controller';
+import { SettingsController } from './controllers/settings.controller';
 import { BookingService } from './services/booking.service';
 import { SeatRowService } from './services/seatrow.service';
 import { AuthService } from './services/auth.service';
@@ -24,13 +25,16 @@ import { JwtStrategy } from './strategies/jwt.strategy';
       signOptions: { expiresIn: '24h' },
     }),
     BullModule.forRoot({
-      redis: process.env.UPSTASH_REDIS_URL,
+      redis: {
+        host: process.env.REDIS_HOST || 'localhost',
+        port:  6379,
+      },
     }),
     BullModule.registerQueue({
       name: 'email',
     }),
   ],
-  controllers: [AppController, BookingController, SeatRowController, AuthController],
+  controllers: [AppController, BookingController, SeatRowController, AuthController, SettingsController],
   providers: [
     AppService, 
     BookingService, 

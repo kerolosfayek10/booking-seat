@@ -15,6 +15,8 @@ interface BookingSeat {
   rowName: string;
   seatNumber: number;
   rowType?: string;
+  firstName?: string;
+  lastName?: string;
 }
 
 interface Booking {
@@ -75,6 +77,7 @@ const BookingManagement: React.FC<BookingManagementProps> = ({ token }) => {
   const [updatingBookings, setUpdatingBookings] = useState<Set<string>>(new Set());
   const [deletingBookings, setDeletingBookings] = useState<Set<string>>(new Set());
   const [emailFilter, setEmailFilter] = useState('');
+  const [phoneFilter, setPhoneFilter] = useState('');
   const [dialogState, setDialogState] = useState<{
     isOpen: boolean;
     type: 'success' | 'error' | 'warning' | 'info';
@@ -153,13 +156,19 @@ const BookingManagement: React.FC<BookingManagementProps> = ({ token }) => {
   };
 
   const getFilteredBookings = () => {
-    if (!emailFilter.trim()) {
+    if (!emailFilter.trim() && !phoneFilter.trim()) {
       return bookings;
     }
     
-    return bookings.filter(booking => 
-      booking.user.email.toLowerCase().includes(emailFilter.toLowerCase())
-    );
+    return bookings.filter(booking => {
+      const matchesEmail = !emailFilter.trim() || 
+        booking.user.email.toLowerCase().includes(emailFilter.toLowerCase());
+      
+      const matchesPhone = !phoneFilter.trim() || 
+        (booking.user.phone && booking.user.phone.includes(phoneFilter));
+      
+      return matchesEmail && matchesPhone;
+    });
   };
 
   const handlePageChange = (page: number) => {
@@ -178,16 +187,7 @@ const BookingManagement: React.FC<BookingManagementProps> = ({ token }) => {
     }
   };
 
-  const handleClearFilter = () => {
-    setEmailFilter('');
-    setCurrentPage(1); // Reset to first page when clearing filter
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Escape') {
-      handleClearFilter();
-    }
-  };
+  // Removed unused functions
 
   const handleConfirmPayment = async (bookingId: string) => {
     try {
@@ -294,22 +294,22 @@ const BookingManagement: React.FC<BookingManagementProps> = ({ token }) => {
   };
 
 
-  const highlightEmail = (email: string) => {
-    if (!emailFilter.trim()) return email;
+  const highlightText = (text: string, filter: string) => {
+    if (!filter.trim() || !text) return text;
     
-    const filterText = emailFilter.toLowerCase();
-    const emailLower = email.toLowerCase();
-    const index = emailLower.indexOf(filterText);
+    const filterText = filter.toLowerCase();
+    const textLower = text.toLowerCase();
+    const index = textLower.indexOf(filterText);
     
-    if (index === -1) return email;
+    if (index === -1) return text;
     
     return (
       <>
-        {email.substring(0, index)}
+        {text.substring(0, index)}
         <mark style={{ backgroundColor: '#ffeb3b', padding: '1px 2px', borderRadius: '2px' }}>
-          {email.substring(index, index + filterText.length)}
+          {text.substring(index, index + filterText.length)}
         </mark>
-        {email.substring(index + filterText.length)}
+        {text.substring(index + filterText.length)}
       </>
     );
   };
@@ -353,34 +353,75 @@ const BookingManagement: React.FC<BookingManagementProps> = ({ token }) => {
 
       <div className="booking-filters">
         <div className="search-container">
-          <div className="search-input-wrapper">
-            <span className="search-icon">🔍</span>
-            <input
-              type="text"
-              placeholder="Search by email address... (Press Esc to clear)"
-              value={emailFilter}
-              onChange={(e) => {
-                setEmailFilter(e.target.value);
-                setCurrentPage(1); // Reset to first page when filtering
-              }}
-              onKeyDown={handleKeyDown}
-              className="email-search-input"
-            />
-            {emailFilter && (
-              <button
-                onClick={handleClearFilter}
-                className="clear-filter-button"
-                title="Clear filter"
-              >
-                ✕
-              </button>
-            )}
+          <div className="search-inputs">
+            <div className="search-input-wrapper">
+              <span className="search-icon">✉️</span>
+              <input
+                type="text"
+                placeholder="Search by email address..."
+                value={emailFilter}
+                onChange={(e) => {
+                  setEmailFilter(e.target.value);
+                  setCurrentPage(1); // Reset to first page when filtering
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setEmailFilter('');
+                }}
+                className="search-input"
+              />
+              {emailFilter && (
+                <button
+                  onClick={() => setEmailFilter('')}
+                  className="clear-filter-button"
+                  title="Clear email filter"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            
+            <div className="search-input-wrapper">
+              <span className="search-icon">📱</span>
+              <input
+                type="text"
+                placeholder="Search by phone number..."
+                value={phoneFilter}
+                onChange={(e) => {
+                  setPhoneFilter(e.target.value);
+                  setCurrentPage(1); // Reset to first page when filtering
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setPhoneFilter('');
+                }}
+                className="search-input"
+              />
+              {phoneFilter && (
+                <button
+                  onClick={() => setPhoneFilter('')}
+                  className="clear-filter-button"
+                  title="Clear phone filter"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
-          {emailFilter && (
+          
+          {(emailFilter || phoneFilter) && (
             <div className="filter-info">
               <span className="filter-results">
                 Showing {filteredBookings.length} of {bookings.length} bookings
               </span>
+              <button
+                onClick={() => {
+                  setEmailFilter('');
+                  setPhoneFilter('');
+                  setCurrentPage(1);
+                }}
+                className="clear-all-filters"
+              >
+                Clear all filters
+              </button>
             </div>
           )}
         </div>
@@ -389,11 +430,22 @@ const BookingManagement: React.FC<BookingManagementProps> = ({ token }) => {
       {filteredBookings.length === 0 ? (
         <div className="empty-state">
           <span className="empty-icon">📝</span>
-          <h3>{emailFilter ? 'No matching bookings found' : 'No bookings found'}</h3>
-          <p>{emailFilter ? `No bookings found for email containing "${emailFilter}"` : 'No customer bookings have been made yet.'}</p>
-          {emailFilter && (
-            <button onClick={handleClearFilter} className="clear-filter-link">
-              Clear filter and show all bookings
+          <h3>{emailFilter || phoneFilter ? 'No matching bookings found' : 'No bookings found'}</h3>
+          <p>
+            {emailFilter || phoneFilter ? 
+              `No bookings found matching your filters${emailFilter ? ` (email: "${emailFilter}")` : ''}${phoneFilter ? ` (phone: "${phoneFilter}")` : ''}` : 
+              'No customer bookings have been made yet.'}
+          </p>
+          {(emailFilter || phoneFilter) && (
+            <button 
+              onClick={() => {
+                setEmailFilter('');
+                setPhoneFilter('');
+                setCurrentPage(1);
+              }} 
+              className="clear-filter-link"
+            >
+              Clear filters and show all bookings
             </button>
           )}
         </div>
@@ -414,8 +466,8 @@ const BookingManagement: React.FC<BookingManagementProps> = ({ token }) => {
                 <div className="customer-info">
                   <h4>👤 Customer Information</h4>
                   <p><strong>Name:</strong> {booking.user.name}</p>
-                  <p><strong>Email:</strong> {highlightEmail(booking.user.email)}</p>
-                  <p><strong>Phone:</strong> {booking.user.phone}</p>
+                  <p><strong>Email:</strong> {highlightText(booking.user.email, emailFilter)}</p>
+                  <p><strong>Phone:</strong> {highlightText(booking.user.phone, phoneFilter)}</p>
                 </div>
 
                 <div className="seat-info">
@@ -429,6 +481,12 @@ const BookingManagement: React.FC<BookingManagementProps> = ({ token }) => {
                             {seat.rowType}
                           </span>
                         )}
+                        <div className="passenger-info">
+                          <span className="passenger-label">Name:</span>
+                          <span className="passenger-name">
+                            {seat.firstName ? `${seat.firstName} ${seat.lastName || ''}` : 'No name provided'}
+                          </span>
+                        </div>
                       </div>
                     ))}
                   </div>

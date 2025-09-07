@@ -18,15 +18,33 @@ async function bootstrap() {
     credentials: true
   });
   
-  // Enable validation globally
-  app.useGlobalPipes(new ValidationPipe());
+  // Enable validation globally (less strict for multipart forms)
+  app.useGlobalPipes(new ValidationPipe({
+    transform: true,
+    whitelist: false, // Don't remove extra properties
+    forbidNonWhitelisted: false, // Allow extra properties
+    skipMissingProperties: true, // Skip validation for missing properties
+    disableErrorMessages: false
+  }));
   
   // Swagger configuration
   const config = new DocumentBuilder()
     .setTitle('Booking API')
     .setDescription('API for seat booking system with receipt management')
     .setVersion('1.0')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'JWT',
+        description: 'Enter JWT token',
+        in: 'header',
+      },
+      'access-token', // اسم الـ security scheme
+    )
     .build();
+
   
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
@@ -34,3 +52,4 @@ async function bootstrap() {
   await app.listen(process.env.PORT ?? 3001);
 }
 bootstrap();
+

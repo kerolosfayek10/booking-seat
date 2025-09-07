@@ -336,6 +336,12 @@
   gap: 12px;
 }
 
+.search-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+
 .search-input-wrapper {
   position: relative;
   display: flex;
@@ -350,7 +356,7 @@
   z-index: 1;
 }
 
-.email-search-input {
+.search-input {
   width: 100%;
   padding: 12px 12px 12px 40px;
   border: 2px solid #e1e5e9;
@@ -360,14 +366,14 @@
   background: #fafbfc;
 }
 
-.email-search-input:focus {
+.search-input:focus {
   outline: none;
   border-color: #2196f3;
   background: white;
   box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
 }
 
-.email-search-input::placeholder {
+.search-input::placeholder {
   color: #999;
 }
 
@@ -402,13 +408,29 @@
   background: #e8f4fd;
   border: 1px solid #bbdefb;
   border-radius: 6px;
-  margin-top: 8px;
+  margin-top: 12px;
 }
 
 .filter-results {
   color: #1976d2;
   font-size: 0.9rem;
   font-weight: 500;
+}
+
+.clear-all-filters {
+  background: #e3f2fd;
+  color: #1976d2;
+  border: 1px solid #bbdefb;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.clear-all-filters:hover {
+  background: #bbdefb;
 }
 
 .clear-filter-link {
@@ -442,7 +464,12 @@
     margin-bottom: 20px;
   }
   
-  .email-search-input {
+  .search-inputs {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  
+  .search-input {
     padding: 10px 10px 10px 35px;
     font-size: 0.95rem;
   }
@@ -450,6 +477,16 @@
   .search-icon {
     left: 10px;
     font-size: 0.9rem;
+  }
+  
+  .filter-info {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .clear-all-filters {
+    width: 100%;
+    padding: 8px;
   }
 }
 
@@ -588,12 +625,40 @@
 
 .seat-item {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   padding: 8px 12px;
   background: #f8f9fa;
   border-radius: 6px;
   border: 1px solid #e9ecef;
+}
+
+.passenger-info {
+  width: 100%;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed #dee2e6;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 8px;
+}
+
+.passenger-label {
+  font-size: 0.85rem;
+  color: #666;
+  font-weight: 500;
+}
+
+.passenger-info .passenger-name {
+  color: #495057;
+  font-weight: 600;
+  font-size: 0.9rem;
+  background-color: #e3f2fd;
+  padding: 3px 8px;
+  border-radius: 4px;
+  display: inline-block;
 }
 
 .seat-location {

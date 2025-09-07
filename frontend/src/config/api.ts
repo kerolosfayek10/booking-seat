@@ -1,7 +1,8 @@
 // API Configuration
 const API_CONFIG = {
   // Base URL for the API
-  BASE_URL: 'https://booking-seat-m4.vercel.app',
+    BASE_URL: 'http://localhost:3001',
+  //BASE_URL: 'https://booking-seat-m4.vercel.app',
   
   // Endpoints
   ENDPOINTS: {
@@ -30,6 +31,12 @@ const API_CONFIG = {
       GET_BY_ID: (id: string) => `/seat-rows/${id}`,
       GET_AVAILABLE: (id: string) => `/seat-rows/${id}/available-seats`,
       ADD_SEAT: (id: string) => `/seat-rows/${id}/add-seat`
+    },
+    
+    // Settings
+    SETTINGS: {
+      BALCONY_VISIBILITY: '/settings/balcony-visibility',
+      ALL: '/settings'
     }
   }
 }

@@ -25,4 +25,22 @@ export class SeatSelectionDto {
   @IsString()
   @IsOptional()
   rowType?: string;
+
+  @ApiProperty({
+    description: 'First name of the person for this seat',
+    example: 'Ahmed',
+    required: true
+  })
+  @IsString()
+  @IsNotEmpty()
+  firstName: string;
+
+  @ApiProperty({
+    description: 'Last name of the person for this seat',
+    example: 'Mohamed',
+    required: true
+  })
+  @IsString()
+  @IsNotEmpty()
+  lastName: string;
 }

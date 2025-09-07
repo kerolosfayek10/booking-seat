@@ -48,20 +48,7 @@ export class BookingService {
         }
       }
 
-      // Check if user already has a booking (unique email constraint)
-      const existingBooking = await this.prisma.booking.findFirst({
-        where: { userId: user.id }
-      });
-
-      if (existingBooking) {
-        console.log(`Duplicate booking attempt for user ${user.id} with email ${email}`);
-        return {
-          success: false,
-          message: `User with email ${email} already has a booking. Only one booking per user is allowed.`,
-          error: 'DUPLICATE_BOOKING',
-          data: null
-        };
-      }
+      // Removed duplicate booking check to allow multiple bookings per user
 
       // Upload receipt if provided
       let receiptUrl: string | null = null;
@@ -78,6 +65,17 @@ export class BookingService {
         }
       }
 
+      // Log seats data received by service
+      console.log('Seats data received by service:', seats);
+      seats.forEach((seat, index) => {
+        console.log(`Seat ${index + 1} details:`, {
+          seatRowId: seat.seatRowId,
+          seatNumber: seat.seatNumber,
+          firstName: seat.firstName,
+          lastName: seat.lastName
+        });
+      });
+      
       // Remove seats from SeatRow and create booking
       const booking = await this.prisma.$transaction(async (tx) => {
         // Remove seats from SeatRow
@@ -95,7 +93,9 @@ export class BookingService {
             seats: {
               create: seats.map(seat => ({
                 seatRowId: seat.seatRowId,
-                seatNumber: seat.seatNumber
+                seatNumber: seat.seatNumber,
+                firstName: seat.firstName.trim(),
+                lastName: seat.lastName.trim()
               }))
             }
           },
@@ -109,34 +109,41 @@ export class BookingService {
               }
             },
             seats: {
-
+              include: {
+                seatRow: {
+                  select: {
+                    name: true,
+                    type: true
+                  }
+                }
+              }
             }
           }
         });
       });
 
-              // Format seats with row type from the request
-        const formattedSeats = booking.seats.map(seat => {
-          const originalSeat = seats.find(s => s.seatRowId === seat.seatRowId && s.seatNumber === seat.seatNumber);
-          return {
-            ...seat,
-            rowType: originalSeat?.rowType || 'Ground' // fallback to Ground if not provided
-          };
-        });
-
+      // Format seats with row type from the request
+      const formattedSeats = booking.seats.map(seat => {
+        const originalSeat = seats.find(s => s.seatRowId === seat.seatRowId && s.seatNumber === seat.seatNumber);
         return {
-          success: true,
-          message: 'Booking created successfully',
-          data: {
-            bookingId: booking.id,
-            user: booking.user,
-            seats: formattedSeats,
-            totalPrice: booking.totalPrice,
-            isPaid: booking.isPaid,
-            receiptUrl: (booking as any).receiptUrl || receiptUrl,
-            createdAt: booking.createdAt
-          }
+          ...seat,
+          rowType: originalSeat?.rowType || 'Ground' // fallback to Ground if not provided
         };
+      });
+
+      return {
+        success: true,
+        message: 'Booking created successfully',
+        data: {
+          bookingId: booking.id,
+          user: booking.user,
+          seats: formattedSeats,
+          totalPrice: booking.totalPrice,
+          isPaid: booking.isPaid,
+          receiptUrl: booking.receiptUrl,
+          createdAt: booking.createdAt
+        }
+      };
 
     } catch (error) {
       console.error('Booking creation failed:', error);
@@ -229,12 +236,14 @@ export class BookingService {
       seats: booking.seats.map(seat => ({
         rowName: seat.seatRow.name,
         seatNumber: seat.seatNumber,
-        rowType: seat.seatRow.type
+        rowType: seat.seatRow.type,
+        firstName: seat.firstName || null,
+        lastName: seat.lastName || null
       })),
       totalSeats: booking.seats.length,
       totalPrice: booking.totalPrice,
       isPaid: booking.isPaid,
-      receiptUrl: (booking as any).receiptUrl || null,
+      receiptUrl: booking.receiptUrl,
       createdAt: booking.createdAt
     }));
 
@@ -292,6 +301,8 @@ export class BookingService {
           rowName: string;
           seatNumber: number;
           rowType: string;
+          firstName: string;
+          lastName: string;
         }> = [];
         
         for (const seat of booking.seats) {
@@ -302,7 +313,9 @@ export class BookingService {
           emailSeats.push({
             rowName: seatRowInfo?.name || 'Unknown',
             seatNumber: seat.seatNumber,
-            rowType: String(seatRowInfo?.type || 'Ground')
+            rowType: String(seatRowInfo?.type || 'Ground'),
+            firstName: seat.firstName,
+            lastName: seat.lastName
           });
         }
 

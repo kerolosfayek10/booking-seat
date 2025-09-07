@@ -37,6 +37,8 @@ model SeatBooking {
   seatRowId  String
   seatRow    SeatRow  @relation(fields: [seatRowId], references: [id])
   seatNumber Int
+  firstName  String
+  lastName   String
 }
 
 

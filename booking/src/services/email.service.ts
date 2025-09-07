@@ -43,11 +43,11 @@ export class EmailService {
     userEmail: string,
     userName: string,
     totalSeats: number,
-    seats: Array<{ rowName: string; seatNumber: number; rowType: string }>
+    seats: Array<{ rowName: string; seatNumber: number; rowType: string; firstName: string; lastName: string }>
   ) {
     const seatDetails = seats
-      .map(seat => `${seat.rowType} - Row ${seat.rowName}, Seat ${seat.seatNumber}`)
-      .join('\n');
+      .map(seat => `<strong>${seat.rowType} - Row ${seat.rowName}, Seat ${seat.seatNumber} - ${seat.firstName} ${seat.lastName}</strong>`)
+      .join('<br>');
 
     const mailOptions = {
       from: `"Kerolos George" <${process.env.EMAIL_USER}>`,
@@ -66,7 +66,9 @@ export class EmailService {
             <p><strong>Booking Name:</strong> ${userName}</p>
             <p><strong>Total Seats:</strong> ${totalSeats}</p>
             <p><strong>Seat Details:</strong></p>
-            <pre style="background-color: #e9ecef; padding: 10px; border-radius: 4px;">${seatDetails}</pre>
+            <div style="padding: 15px; background-color: #e9ecef; border-radius: 4px;">
+              ${seatDetails}
+            </div>
           </div>
           
           <p>Please keep this email as your booking confirmation. You may be asked to present this when you arrive.</p>

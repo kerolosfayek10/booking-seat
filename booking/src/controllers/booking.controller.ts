@@ -63,7 +63,7 @@ export class BookingController {
         seats: {
           type: 'string',
           description: 'JSON string of seat array',
-          example: '[{"seatRowId":"clp1234567890","seatNumber":1},{"seatRowId":"clp1234567890","seatNumber":2}]'
+          example: '[{"seatRowId":"clp1234567890","seatNumber":1,"firstName":"Ahmed","lastName":"Mohamed"},{"seatRowId":"clp1234567890","seatNumber":2,"firstName":"Sara","lastName":"Ali"}]'
         },
         receipt: {
           type: 'string',
@@ -108,10 +108,38 @@ export class BookingController {
     try {
       console.log('Controller received booking request for email:', body.email);
       
+      console.log('Raw body received:', body);
+      console.log('Raw seats data received:', body.seats);
+      
+      // Validate required form fields
+      if (!body.name || !body.email) {
+        throw new BadRequestException('Name and email are required');
+      }
+      
       // Parse seats from JSON string (needed for multipart/form-data)
-      const seats = typeof body.seats === 'string' 
-        ? JSON.parse(body.seats) 
-        : body.seats;
+      let seats;
+      try {
+        seats = typeof body.seats === 'string' 
+          ? JSON.parse(body.seats) 
+          : body.seats;
+      } catch (parseError) {
+        console.error('Failed to parse seats JSON:', parseError);
+        throw new BadRequestException('Invalid seats data format');
+      }
+        
+      console.log('Parsed seats data:', seats);
+      
+      // Validate seats array
+      if (!Array.isArray(seats) || seats.length === 0) {
+        throw new BadRequestException('Seats must be a non-empty array');
+      }
+      
+      // Validate each seat object
+      for (const seat of seats) {
+        if (!seat.seatRowId || !seat.seatNumber || !seat.firstName || !seat.lastName) {
+          throw new BadRequestException('Each seat must have seatRowId, seatNumber, firstName, and lastName');
+        }
+      }
 
       // Quick validation: check if seats are already booked
       // Note: Detailed seat validation is done in the service layer
@@ -127,7 +155,8 @@ export class BookingController {
       console.log('Controller calling service with DTO:', { 
         name: createBookingDto.name, 
         email: createBookingDto.email, 
-        seatsCount: createBookingDto.seats.length 
+        seatsCount: createBookingDto.seats.length,
+        seats: createBookingDto.seats
       });
 
       return await this.bookingService.createBooking(createBookingDto, receipt);
@@ -510,8 +539,8 @@ export class BookingController {
         'Test User',
         2,
         [
-          { rowName: 'A', seatNumber: 1, rowType: 'Ground' },
-          { rowName: 'A', seatNumber: 2, rowType: 'Ground' }
+          { rowName: 'A', seatNumber: 1, rowType: 'Ground', firstName: 'Ahmed', lastName: 'Mohamed' },
+          { rowName: 'A', seatNumber: 2, rowType: 'Ground', firstName: 'Sara', lastName: 'Ali' }
         ]
       );
       

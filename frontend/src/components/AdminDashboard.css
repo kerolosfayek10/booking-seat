@@ -40,6 +40,57 @@
   background: rgba(255, 255, 255, 0.25);
 }
 
+.admin-controls {
+  background: white;
+  padding: 16px 24px;
+  border-bottom: 1px solid #e1e5e9;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.control-label {
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 0.95rem;
+}
+
+.toggle-button {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 0.9rem;
+}
+
+.toggle-button.enabled {
+  background: #28a745;
+  color: white;
+}
+
+.toggle-button.enabled:hover {
+  background: #218838;
+}
+
+.toggle-button.disabled {
+  background: #dc3545;
+  color: white;
+}
+
+.toggle-button.disabled:hover {
+  background: #c82333;
+}
+
+.toggle-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .admin-tabs {
   background: white;
   border-bottom: 1px solid #e1e5e9;

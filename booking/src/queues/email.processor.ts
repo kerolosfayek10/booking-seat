@@ -6,7 +6,13 @@ export interface EmailJobData {
   userEmail: string;
   userName: string;
   totalSeats: number;
-  seats: Array<{ rowName: string; seatNumber: number; rowType: string }>;
+  seats: Array<{ 
+    rowName: string; 
+    seatNumber: number; 
+    rowType: string;
+    firstName: string;
+    lastName: string;
+  }>;
 }
 
 @Processor('email')
