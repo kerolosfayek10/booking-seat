@@ -53,6 +53,7 @@ model SeatRow {
   type         SeatRowType   @default(Ground)
   seats        Int[]    
   seatBookings SeatBooking[]
+  visible      Boolean       @default(false)
   createdAt    DateTime      @default(now())
 }
 

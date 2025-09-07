@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import axios from 'axios'
 import Dialog from './Dialog'
 import { buildUrl, ENDPOINTS } from '../config/api'
@@ -28,7 +28,6 @@ interface ModernBookingFormProps {
 const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows }) => {
   const [step, setStep] = useState<'selection' | 'payment'>('selection')
   const [selectedSeatType, setSelectedSeatType] = useState<'Ground' | 'Balcony' | null>(null)
-  const [balconyVisible, setBalconyVisible] = useState<boolean>(true)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -56,29 +55,8 @@ const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows }) => {
   const [showPassengerModal, setShowPassengerModal] = useState(false)
   const [currentEditingSeat, setCurrentEditingSeat] = useState<SelectedSeat | null>(null)
 
-  // Fetch balcony visibility setting on component mount
-  useEffect(() => {
-    const fetchBalconyVisibility = async () => {
-      try {
-        const response = await axios.get(buildUrl(ENDPOINTS.SETTINGS.BALCONY_VISIBILITY))
-        setBalconyVisible(response.data.visible)
-      } catch (error) {
-        console.error('Error fetching balcony visibility:', error)
-        // Default to visible if API fails
-        setBalconyVisible(true)
-      }
-    }
-
-    fetchBalconyVisibility()
-  }, [])
-
-  // Clear balcony selections if balcony becomes invisible
-  useEffect(() => {
-    if (!balconyVisible && selectedSeatType === 'Balcony') {
-      setSelectedSeatType(null)
-      setSelectedSeats([])
-    }
-  }, [balconyVisible, selectedSeatType])
+  // Check if balcony seats are available in the provided seatRows
+  const hasBalconySeats = seatRows.some(row => row.type === 'Balcony')
 
   const showDialog = (type: 'success' | 'error' | 'warning' | 'info', title: string, message: string) => {
     setDialogState({
@@ -102,19 +80,9 @@ const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows }) => {
   const getFilteredSeatRows = () => {
     if (!selectedSeatType) return []
     
-    // Filter by selected seat type and balcony visibility
-    const filteredRows = seatRows.filter(row => {
-      if (row.type === selectedSeatType) {
-        // If it's balcony type, check if balcony is visible
-        if (row.type === 'Balcony') {
-          return balconyVisible
-        }
-        return true
-      }
-      return false
-    })
-    
-    return filteredRows
+    // Simply filter by selected seat type
+    // Backend already filters out invisible rows
+    return seatRows.filter(row => row.type === selectedSeatType)
   }
 
   const getSeatLayoutImage = () => {
@@ -496,7 +464,7 @@ const ModernBookingForm: React.FC<ModernBookingFormProps> = ({ seatRows }) => {
                     </div>
                   </div>
                   
-                  {balconyVisible && (
+                  {hasBalconySeats && (
                     <div className="seat-type-card balcony">
                       <div className="seat-type-header">
                         <div className="seat-type-icon">🏢</div>

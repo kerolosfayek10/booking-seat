@@ -36,6 +36,12 @@ export class SeatRowController {
     enum: SeatRowType,
     description: 'Filter by seat row type (Ground or Balcony)'
   })
+  @ApiQuery({
+    name: 'includeHidden',
+    required: false,
+    type: Boolean,
+    description: 'Include hidden seat rows (admin only)'
+  })
   @ApiResponse({ 
     status: 200, 
     description: 'List of all seat rows',
@@ -51,13 +57,18 @@ export class SeatRowController {
             type: 'array',
             items: { type: 'number' }
           },
+          visible: { type: 'boolean' },
           createdAt: { type: 'string' }
         }
       }
     }
   })
-  async getAllSeatRows(@Query('type') type?: SeatRowType) {
-    return await this.seatRowService.getAllSeatRows(type);
+  async getAllSeatRows(
+    @Query('type') type?: SeatRowType,
+    @Query('includeHidden') includeHidden?: string
+  ) {
+    const showHidden = includeHidden === 'true';
+    return await this.seatRowService.getAllSeatRows(type, showHidden);
   }
 
   @Get(':id')

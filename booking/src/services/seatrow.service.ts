@@ -26,8 +26,18 @@ export class SeatRowService {
     });
   }
 
-  async getAllSeatRows(type?: SeatRowType) {
-    const whereClause = type ? { type } : undefined;
+  async getAllSeatRows(type?: SeatRowType, includeHidden?: boolean) {
+    const whereClause: any = {};
+    
+    if (type) {
+      whereClause.type = type;
+    }
+    
+    // For frontend, only show visible rows. For admin, show all.
+    if (!includeHidden) {
+      whereClause.visible = true;
+    }
+    
     return await this.prisma.seatRow.findMany({
       where: whereClause,
       orderBy: {

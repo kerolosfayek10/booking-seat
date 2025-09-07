@@ -1,7 +1,7 @@
 // API Configuration
 const API_CONFIG = {
   // Base URL for the API
-   // BASE_URL: 'http://localhost:3001',
+    // BASE_URL: 'http://localhost:3001',
   BASE_URL: 'https://booking-seat-m4.vercel.app',
   
   // Endpoints

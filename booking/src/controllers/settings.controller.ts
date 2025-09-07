@@ -14,13 +14,12 @@ import {
   ApiBearerAuth
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
-
-// Simple in-memory storage for balcony visibility
-let balconyVisible = true;
+import { PrismaService } from '../services/prisma.service';
 
 @ApiTags('Settings')
 @Controller('settings')
 export class SettingsController {
+  constructor(private readonly prisma: PrismaService) {}
 
   @Get('balcony-visibility')
   @ApiOperation({ 
@@ -37,8 +36,16 @@ export class SettingsController {
       }
     }
   })
-  getBalconyVisibility() {
-    return { visible: balconyVisible };
+  async getBalconyVisibility() {
+    // Check if any balcony seat rows are visible
+    const visibleBalconyRows = await this.prisma.seatRow.findMany({
+      where: {
+        type: 'Balcony',
+        visible: true
+      }
+    });
+    
+    return { visible: visibleBalconyRows.length > 0 };
   }
 
   @Post('balcony-visibility')
@@ -69,7 +76,8 @@ export class SettingsController {
       properties: {
         success: { type: 'boolean' },
         message: { type: 'string' },
-        visible: { type: 'boolean' }
+        visible: { type: 'boolean' },
+        updatedRows: { type: 'number' }
       }
     }
   })
@@ -77,18 +85,33 @@ export class SettingsController {
     status: 400, 
     description: 'Bad request' 
   })
-  setBalconyVisibility(@Body() body: { visible: boolean }) {
+  async setBalconyVisibility(@Body() body: { visible: boolean }) {
     if (typeof body.visible !== 'boolean') {
       throw new BadRequestException('visible must be a boolean value');
     }
 
-    balconyVisible = body.visible;
-    console.log(`Balcony visibility set to: ${balconyVisible}`);
-    
-    return {
-      success: true,
-      message: `Balcony visibility ${body.visible ? 'enabled' : 'disabled'} successfully`,
-      visible: body.visible
-    };
+    try {
+      // Update all balcony seat rows visibility
+      const updateResult = await this.prisma.seatRow.updateMany({
+        where: {
+          type: 'Balcony'
+        },
+        data: {
+          visible: body.visible
+        }
+      });
+
+      console.log(`Updated ${updateResult.count} balcony rows visibility to: ${body.visible}`);
+      
+      return {
+        success: true,
+        message: `Balcony visibility ${body.visible ? 'enabled' : 'disabled'} successfully`,
+        visible: body.visible,
+        updatedRows: updateResult.count
+      };
+    } catch (error) {
+      console.error('Failed to update balcony visibility:', error);
+      throw new BadRequestException('Failed to update balcony visibility');
+    }
   }
 }
